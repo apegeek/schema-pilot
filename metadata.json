@@ -1,0 +1,5 @@
+{
+  "name": "Flyway Visualizer",
+  "description": "A visual interface for managing Flyway database migrations, editing SQL scripts, and analyzing changes with AI.",
+  "requestFramePermissions": []
+}
