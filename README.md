@@ -117,7 +117,6 @@ pnpm run preview
 
 ---
 
-> 旧称 “Flyway 可视化工具” 已升级为 “SchemaPilot Studio”。如需变更仓库名与路径，请同步更新仓库 Settings 与文档中的链接。
 
 ## 作者
 - 85后全栈工程师，职业生涯献给编程与产品化实践，长期专注高质量交付与工程化能力建设。
@@ -133,11 +132,11 @@ pnpm run preview
     <tr>
       <td align="center">
         <strong>支付宝</strong><br/>
-        <img alt="Alipay QR" src="./docs/donate-alipay.png" width="180" />
+        <img alt="Alipay QR" src="./docs/donate-alipay.jpg" width="180" />
       </td>
       <td align="center">
         <strong>微信</strong><br/>
-        <img alt="WeChat QR" src="./docs/donate-wechat.png" width="180" />
+        <img alt="WeChat QR" src="./docs/donate-wechat.jpg" width="180" />
       </td>
     </tr>
   </table>
