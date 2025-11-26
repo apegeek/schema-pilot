@@ -817,6 +817,164 @@ export default defineConfig(({ mode }) => {
                 return;
               }
 
+              if (req.url.startsWith('/api/ai/generate-sql/stream')) {
+                const sseInit = (res: any) => {
+                  res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                  });
+                  return {
+                    send: (d: string) => { try { res.write(`data: ${JSON.stringify(d)}\n\n`); } catch {} },
+                    end: () => { try { res.write('event: done\n'); res.write('data: [DONE]\n\n'); res.end(); } catch {} }
+                  };
+                };
+                try {
+                  const body = await readJson(req) as { config?: DbConfig, description: string };
+                  let ai = body.config?.ai as AiModelConfig | undefined;
+                  if (!ai?.provider || !ai?.model || !ai?.apiKey) {
+                    try {
+                      const client = createRedisClient({ socket: { host: '127.0.0.1', port: 6379 } });
+                      await client.connect();
+                      const raw = await client.get('schema-pilot:ai:config');
+                      await client.quit();
+                      ai = raw ? JSON.parse(raw) as AiModelConfig : undefined;
+                    } catch {}
+                  }
+                  const es = sseInit(res);
+                  if (!ai?.provider || !ai?.model || !ai?.apiKey) {
+                    ai = volatileAiConfig || (fs.existsSync(localAiConfigPath) ? JSON.parse(fs.readFileSync(localAiConfigPath, 'utf-8')) : undefined);
+                  }
+                  if (!ai?.provider || !ai?.model || !ai?.apiKey) {
+                    es.send('Error: AI config incomplete');
+                    es.end();
+                    return;
+                  }
+                  const genPath = path.resolve(projectRoot, 'prompts/gen.md');
+                  const promptMd = fs.existsSync(genPath) ? fs.readFileSync(genPath, 'utf-8') : '';
+                  const dbInfo = body.config?.type ? `数据库类型: ${String(body.config.type)}` : '';
+                  const desc = String(body.description || '').trim();
+                  if (!desc) {
+                    es.send('Error: Missing description');
+                    es.end();
+                    return;
+                  }
+                  const userMsg = `${dbInfo ? dbInfo + '\n' : ''}${desc}`;
+                  if (ai.provider === 'DeepSeek') {
+                    const controller = new AbortController();
+                    req.on('close', () => { try { controller.abort(); } catch {} });
+                    const resp = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream',
+                        'Authorization': `Bearer ${ai.apiKey}`
+                      },
+                      body: JSON.stringify({
+                        model: ai.model || 'deepseek-chat',
+                        messages: [
+                          ...(promptMd ? [{ role: 'system', content: promptMd }] : []),
+                          { role: 'user', content: userMsg }
+                        ],
+                        stream: true,
+                        stream_options: { include_usage: false },
+                        temperature: 0.7,
+                        top_p: 0.95
+                      }),
+                      signal: controller.signal
+                    }, 18000);
+                    if (!resp.ok || !resp.body) {
+                      const errText = await resp.text().catch(() => '');
+                      const gmKey = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+                      if (String(resp.status) === '402' && gmKey) {
+                        const prompt = `${promptMd}\n\n用户需求:\n${userMsg}`;
+                        es.send('提示：DeepSeek 余额不足，自动切换 Gemini');
+                        const gmResp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent('gemini-2.5-flash')}:generateContent?key=${encodeURIComponent(gmKey)}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
+                        }, 18000);
+                        if (!gmResp.ok) {
+                          const gmErr = await gmResp.text().catch(() => '');
+                          es.send(`Error: Gemini HTTP ${gmResp.status}: ${gmErr}`);
+                          es.end();
+                          return;
+                        }
+                        const gmData = await gmResp.json();
+                        const gmText = (gmData?.candidates?.[0]?.content?.parts?.[0]?.text) || '';
+                        if (!gmText) { es.send('No output'); es.end(); return; }
+                        const pieces = String(gmText).split(/\n\n/);
+                        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+                        for (const p of pieces) { es.send(p); await sleep(60); }
+                        es.end();
+                        return;
+                      }
+                      es.send(`Error: DeepSeek HTTP ${resp.status}: ${errText}`);
+                      es.end();
+                      return;
+                    }
+                    const reader = resp.body.getReader();
+                    const decoder = new TextDecoder();
+                    let finished = false;
+                    while (!finished) {
+                      const { value, done } = await reader.read();
+                      finished = done;
+                      if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        const lines = chunk.split(/\r?\n/);
+                        let sawDone = false;
+                        for (const line of lines) {
+                          if (!line.startsWith('data:')) continue;
+                          const data = line.replace(/^data:\s*/, '').trim();
+                          if (!data) continue;
+                          if (data === '[DONE]') { sawDone = true; break; }
+                          try {
+                            const json = JSON.parse(data);
+                            const delta = json?.choices?.[0]?.delta?.content || json?.choices?.[0]?.message?.content || '';
+                            if (delta) es.send(delta);
+                          } catch {
+                            es.send(data);
+                          }
+                        }
+                        if (sawDone) { try { await reader.cancel(); } catch {} break; }
+                      }
+                    }
+                    es.end();
+                  } else {
+                    const resp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model)}:generateContent?key=${encodeURIComponent(ai.apiKey)}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ contents: [{ role: 'user', parts: [ ...(promptMd ? [{ text: promptMd }] : []), { text: userMsg } ] }] })
+                    }, 18000);
+                    if (!resp.ok) {
+                      const errText = await resp.text().catch(() => '');
+                      es.send(`Error: Gemini HTTP ${resp.status}: ${errText}`);
+                      es.end();
+                      return;
+                    }
+                    const data = await resp.json();
+                    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text) || '';
+                    if (!text) { es.send('No output'); es.end(); return; }
+                    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+                    const chunkText = (s: string, size: number): string[] => {
+                      const out: string[] = [];
+                      for (let i = 0; i < s.length; i += size) out.push(s.slice(i, i + size));
+                      return out;
+                    };
+                    const pieces = chunkText(String(text), 20);
+                    for (const p of pieces) { es.send(p); await sleep(25); }
+                    es.end();
+                  }
+                } catch (err: any) {
+                  try {
+                    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+                    res.write(`data: ${String(err?.message || 'Generate SQL failed')}\n\n`);
+                    res.end();
+                  } catch {}
+                }
+                return;
+              }
+
               if (req.url.startsWith('/api/ai/generate-sql')) {
                 try {
                   const body = await readJson(req) as { config?: DbConfig, description: string };
@@ -845,7 +1003,9 @@ export default defineConfig(({ mode }) => {
                     res.end(JSON.stringify({ ok: false, error: 'Missing description' }));
                     return;
                   }
-                  const prompt = `${dbInfo}\nDesign DDL strictly following these rules:\n- Output ONE fenced block labeled sql only\n- Include CREATE TABLE statements with primary key, NOT NULL constraints\n- Include indexes and foreign keys if relationships are described\n- Use snake_case naming\n- Add created_at TIMESTAMP and updated_at TIMESTAMP where appropriate\n- Avoid DROP statements\n\nRequirements:\n${desc}`;
+                  const genPath = path.resolve(projectRoot, 'prompts/gen.md');
+                  const promptMd = fs.existsSync(genPath) ? fs.readFileSync(genPath, 'utf-8') : '';
+                  const userMsg = `${dbInfo ? dbInfo + '\n' : ''}用户需求:\n${desc}`;
                   let text = '';
                   if (ai.provider === 'DeepSeek') {
                     const resp = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
@@ -854,7 +1014,13 @@ export default defineConfig(({ mode }) => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${ai.apiKey}`
                       },
-                      body: JSON.stringify({ model: ai.model || 'deepseek-reasoner', messages: [{ role: 'user', content: prompt }] })
+                      body: JSON.stringify({
+                        model: ai.model || 'deepseek-reasoner',
+                        messages: [
+                          ...(promptMd ? [{ role: 'system', content: promptMd }] : []),
+                          { role: 'user', content: userMsg }
+                        ]
+                      })
                     }, 15000);
                     if (!resp.ok) {
                       const errText = await resp.text().catch(() => '');
@@ -866,7 +1032,12 @@ export default defineConfig(({ mode }) => {
                     const resp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model)}:generateContent?key=${encodeURIComponent(ai.apiKey)}`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
+                      body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [
+                          ...(promptMd ? [{ text: promptMd }] : []),
+                          { text: userMsg }
+                        ] }]
+                      })
                     }, 15000);
                     if (!resp.ok) {
                       const errText = await resp.text().catch(() => '');

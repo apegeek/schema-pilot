@@ -1,5 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Sidebar from './components/Sidebar';
 import ScriptEditor from './components/ScriptEditor';
 import LogPanel from './components/LogPanel';
@@ -198,18 +202,96 @@ const App: React.FC = () => {
     setGenOut('');
     setGenErr('');
   };
+  const extractSqlBlocks = (md: string): string[] => {
+    const blocks: string[] = [];
+    const reBacktick = /```[\s\S]*?```/g;
+    let m;
+    while ((m = reBacktick.exec(md)) !== null) {
+      const block = m[0];
+      const lines = block.split('\n');
+      if (lines.length >= 2) {
+        const content = lines.slice(1, -1).join('\n').trim();
+        if (content) blocks.push(content);
+      } else {
+        const content = block.replace(/^```\w*\s*/, '').replace(/```$/, '').trim();
+        if (content) blocks.push(content);
+      }
+    }
+    if (blocks.length) return blocks;
+    const paras = md.split(/\n\s*\n/);
+    const looksSqlStart = /^(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|SELECT|BEGIN|COMMIT|ROLLBACK|GRANT|REVOKE|TRUNCATE|COMMENT|CONSTRAINT|FOREIGN KEY|PRIMARY KEY|REFERENCES|ADD CONSTRAINT|SET|VALUES|FROM|JOIN|WHERE)\b/i;
+    return paras.filter(p => looksSqlStart.test(p.trim())).map(p => p.trim());
+  };
   const handleGenerateSql = async () => {
     setGenErr('');
     setGenOut('');
     setGenLoading(true);
-    const out = await dbService.generateSql(undefined, genDesc);
-    setGenLoading(false);
-    setGenOut(out);
+    try {
+      const aiCfg = await dbService.getAiConfig();
+      const reqCfg: any = aiCfg ? { ...config, ai: aiCfg } : config;
+      const res = await fetch('/api/ai/generate-sql/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: reqCfg, description: genDesc })
+      });
+      if (!res.body) {
+        const out = await dbService.generateSql(reqCfg, genDesc);
+        setGenOut(out);
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      while (!done) {
+        const { value, done: d } = await reader.read();
+        done = d;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split(/\r?\n/);
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            const raw = line.replace(/^data:\s*/, '');
+            if (!raw || raw === '[DONE]') continue;
+            let data = raw;
+            try {
+              const parsed = JSON.parse(raw);
+              if (typeof parsed === 'string') data = parsed;
+            } catch {}
+            setGenOut(prev => prev + data);
+          }
+        }
+      }
+    } catch (e: any) {
+      setGenErr(String(e?.message || 'Generate failed'));
+    } finally {
+      setGenLoading(false);
+    }
   };
   const handleSaveGenerated = async () => {
+    const existing = await dbService.fetchScriptsFromPath(config.scriptsPath);
+    const parse = (v: string) => v.split('.').map(x => parseInt(x, 10)).map(n => isNaN(n) ? 0 : n);
+    const cmp = (a: string, b: string) => {
+      const A = parse(a);
+      const B = parse(b);
+      const len = Math.max(A.length, B.length);
+      for (let i = 0; i < len; i++) { const ai = A[i] || 0, bi = B[i] || 0; if (ai !== bi) return ai - bi; }
+      return 0;
+    };
+    const versions = existing.map(s => s.version).filter(v => typeof v === 'string' && v.trim().length > 0);
+    let next = '1';
+    if (versions.length) {
+      const max = versions.sort(cmp).pop() as string;
+      const arr = parse(max);
+      if (!arr.length) arr.push(0);
+      arr[arr.length - 1] += 1;
+      next = arr.join('.');
+    }
     const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-    const name = `V${Date.now()}__${slugify('ai_generated')}.sql`;
-    const ok = await dbService.uploadScriptToPath(config.scriptsPath, name, genOut);
+    const desc = slugify(genDesc || 'ai generated').replace(/-/g, '_');
+    const name = `V${next}__${desc}.sql`;
+    const blocks = extractSqlBlocks(genOut);
+    const payload = (blocks.length ? blocks.join('\n\n') : genOut).trim();
+    const ok = await dbService.uploadScriptToPath(config.scriptsPath, name, payload);
     if (ok) handleRefresh();
     setIsGenOpen(false);
   };
@@ -322,8 +404,8 @@ const App: React.FC = () => {
                     <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
                       <PanelBottom className="w-10 h-10 opacity-30" />
                     </div>
-                    <h3 className="text-lg font-medium text-gray-400 mb-2">{t.sidebar.no_scripts}</h3>
-                    <p className="text-sm text-gray-600 max-w-sm text-center">{t.sidebar.back_link}</p>
+                    <h3 className="text-lg font-medium text-gray-400 mb-2">{t.editor.no_selection_title}</h3>
+                    <p className="text-sm text-gray-600 max-w-sm text-center">{t.editor.no_selection_desc}</p>
                   </div>
                 </div>
               )}
@@ -367,8 +449,8 @@ const App: React.FC = () => {
                       <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
                         <PanelBottom className="w-10 h-10 opacity-30" />
                       </div>
-                      <h3 className="text-lg font-medium text-gray-400 mb-2">{t.sidebar.no_scripts}</h3>
-                      <p className="text-sm text-gray-600 max-w-sm text-center">{t.sidebar.back_link}</p>
+                      <h3 className="text-lg font-medium text-gray-400 mb-2">{t.editor.no_selection_title}</h3>
+                      <p className="text-sm text-gray-600 max-w-sm text-center">{t.editor.no_selection_desc}</p>
                     </div>
                   </div>
                 )}
@@ -419,30 +501,59 @@ const App: React.FC = () => {
       />
       {isGenOpen && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-[#1e1e1e] w-[560px] border border-flyway-border rounded-lg shadow-xl">
+          <div className="bg-[#1e1e1e] w-[750px] h-[600px] border border-flyway-border rounded-lg shadow-xl overflow-hidden">
             <div className="p-4 border-b border-flyway-border text-gray-200 font-semibold">{t.editor.gen_title}</div>
-            <div className="p-4 space-y-3">
-              <label className="text-xs text-gray-400">{t.editor.gen_desc_label}</label>
-              <textarea
-                value={genDesc}
-                onChange={(e) => setGenDesc(e.target.value)}
-                className="w-full h-28 bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200"
-                placeholder={t.editor.gen_desc_placeholder}
-              />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setIsGenOpen(false)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
-                <button onClick={handleGenerateSql} disabled={genLoading || !genDesc.trim()} className={`px-3 py-1.5 text-xs rounded ${genLoading ? 'bg-purple-800 text-gray-300' : 'bg-purple-700 text-white hover:bg-purple-600'} border border-purple-600`}>{t.editor.gen_generate}</button>
-              </div>
-              {genErr && <div className="text-xs text-red-400">{genErr}</div>}
-              {genOut && (
-                <div className="mt-2">
+            <div className="p-4 h-[540px]">
+              <div className="grid grid-cols-2 gap-3 h-full min-h-0">
+                <div className="flex flex-col min-h-0">
+                  <label className="text-xs text-gray-400 mb-1">{t.editor.gen_desc_label}</label>
+                  <textarea
+                    value={genDesc}
+                    onChange={(e) => setGenDesc(e.target.value)}
+                    className="w-full flex-1 bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200"
+                    placeholder={t.editor.gen_desc_placeholder}
+                  />
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button onClick={() => setIsGenOpen(false)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
+                    <button onClick={handleGenerateSql} disabled={genLoading || !genDesc.trim()} className={`px-3 py-1.5 text-xs rounded ${genLoading ? 'bg-purple-800 text-gray-300' : 'bg-purple-700 text-white hover:bg-purple-600'} border border-purple-600`}>{t.editor.gen_generate}</button>
+                  </div>
+                  {genErr && <div className="mt-2 text-xs text-red-400">{genErr}</div>}
+                </div>
+                <div className="flex flex-col min-h-0">
                   <div className="text-xs text-gray-400 mb-1">{t.editor.gen_output_title}</div>
-                  <pre className="bg-black/30 border border-flyway-border rounded p-2 text-xs text-gray-200 whitespace-pre-wrap">{genOut}</pre>
-                  <div className="flex justify-end mt-2">
-                    <button onClick={handleSaveGenerated} className="px-3 py-1.5 text-xs rounded bg-green-700 text-white border border-green-600 hover:bg-green-600">{t.editor.gen_save}</button>
+                  <div className="flex-1 min-h-0 bg-black/30 border border-flyway-border rounded overflow-hidden">
+                    <div className="h-full overflow-y-auto p-2 text-xs">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code({node, inline, className, children, ...props}) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            if (!inline) {
+                              return (
+                                <SyntaxHighlighter
+                                  {...props}
+                                  PreTag="div"
+                                  language={(match && match[1]) || 'sql'}
+                                  style={vscDarkPlus}
+                                  wrapLongLines
+                                >
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              );
+                            }
+                            return <code className={className} {...props}>{children}</code>;
+                          }
+                        }}
+                      >
+                        {genOut}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex justify-end">
+                    <button onClick={handleSaveGenerated} disabled={!genOut.trim()} className="px-3 py-1.5 text-xs rounded bg-green-700 text-white border border-green-600 hover:bg-green-600">{t.editor.gen_save}</button>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>

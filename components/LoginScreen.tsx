@@ -27,19 +27,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       className="min-h-screen relative flex flex-col items-center justify-center text-gray-200"
       style={{
         backgroundImage: `url(${bgUrl})`,
-        backgroundSize: 'cover',
+        backgroundSize: '50%',
         backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#020204'
       }}
     >
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: 'rgba(1, 1, 1, 0.45)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)'
-        }}
-      ></div>
       <div className="w-full max-w-md p-8 bg-flyway-panel border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden z-10">
         
         {/* Decorative background element */}

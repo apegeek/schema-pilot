@@ -135,13 +135,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-[10px] font-semibold ${script.status === MigrationStatus.SUCCESS ? 'text-green-500' : (script.status === MigrationStatus.FAILED ? 'text-red-500' : 'text-amber-500')}`}>
+                <span className={`inline-flex items-center h-5 px-1.5 text-[10px] font-semibold ${script.status === MigrationStatus.SUCCESS ? 'text-green-500' : (script.status === MigrationStatus.FAILED ? 'text-red-500' : 'text-amber-500')}`}>
                   {script.status === MigrationStatus.SUCCESS ? t.editor.status_applied : (script.status === MigrationStatus.FAILED ? t.history.state_fail : t.editor.status_pending)}
                 </span>
                 {script.status === MigrationStatus.PENDING && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setToDelete(script); }}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-900/20 text-gray-400 hover:text-red-400 transition-colors"
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-900/20 text-gray-400 hover:text-red-400 transition-colors flex items-center"
                     title={t.sidebar.delete_tooltip}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -182,7 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <RefreshCw className="w-4 h-4" />
             </button>
-            <label className="p-1.5 hover:bg:white/10 rounded transition-colors text-gray-400 hover:text-green-400 cursor-pointer" title={t.sidebar.upload_tooltip}>
+            <label className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-green-400 cursor-pointer" title={t.sidebar.upload_tooltip}>
               <input type="file" accept=".sql" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;

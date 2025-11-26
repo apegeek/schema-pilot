@@ -76,7 +76,44 @@ pnpm run preview
 - 三栏工作台（左：脚本树｜中：历史表｜右：SQL 编辑器），底部运行日志
 - 可拖拽调整列宽，分隔条带有握柄图标与“拖拽以调整宽度”提示
 
-> 注：截图与演示 GIF 可在仓库的 `docs/` 目录补充添加
+## 功能截图
+- 首页
+  
+  ![首页](./docs/home.png)
+
+- AI 生成 SQL
+  
+  ![AI 生成 SQL](./docs/gen.png)
+
+- AI 分析 SQL
+  
+  ![AI 分析 SQL](./docs/ai.png)
+
+- 配置向导（数据库与缓存）
+  
+  ![配置向导 1](./docs/c1.png)
+  
+  ![配置向导 2](./docs/c2.png)
+  
+  ![配置向导 3](./docs/c3.png)
+  
+  ![配置向导 4](./docs/c4.png)
+
+- 全屏模式
+  
+  ![全屏模式](./docs/full.png)
+
+## 高级能力
+- AI 双引擎与可配置：支持 `Gemini` 与 `DeepSeek`，自定义 `provider/model/apiKey`，提示词可缓存与复用，分析结果以 Markdown 渲染并支持 SQL 高亮。
+- 命名规则自动化：保存“新版本”自动按 `V<版本>__<描述>.sql` 计算下一版本号，描述自动 `slug` 规范化。
+- 仅保存 SQL：从 AI 输出中提取代码块或基于关键字识别段落，确保写入文件仅为 SQL 内容。
+- 预览不撑开页面：生成/分析面板启用 `min-h-0` 与 `overflow-y-auto`，大段内容内部滚动，页面布局稳定。
+- 状态映射与只读保护：与 `flyway_schema_history` 比对，已应用脚本只读，待执行可编辑并支持保存。
+- Redis 与本地缓存：脚本与历史按需缓存，AI 全局配置读写接口，提升交互与加载性能。
+- 连接与健康检查：真实数据库连接测试与 Redis Ping 校验，错误即时反馈。
+- 多栏与全屏：多分栏可拖拽，编辑器支持全屏阅读与操作，底部日志可调高。
+- 国际化：中英文切换，界面文本与提示同步适配。
+- 生产部署建议：开发路由便于调试，生产环境可替换为后端服务进行鉴权与审计。
 
 ## 部署
 - 本项目为前端 SPA 应用，可配合任何静态服务器部署 `dist/`
@@ -146,15 +183,12 @@ pnpm run preview
   <table>
     <tr>
       <td align="center">
-        <strong>支付宝</strong><br/>
         <img alt="Alipay QR" src="./docs/donate-alipay.jpg" width="180" />
       </td>
       <td align="center">
-        <strong>微信</strong><br/>
         <img alt="WeChat QR" src="./docs/donate-wechat.jpg" width="180" />
       </td>
     </tr>
   </table>
-  <p>（请将上述二维码图片替换为你的收款码）</p>
   <p>你的支持将用于：完善功能、撰写文档与示例、维护社区与路线图。</p>
 </div>

@@ -123,6 +123,8 @@ interface Translations {
     prompt_save_success: string;
     prompt_save_fail: string;
     ai_reanalyze: string;
+    no_selection_title: string;
+    no_selection_desc: string;
   };
   history: {
     title: string;
@@ -268,6 +270,8 @@ const translations: Record<Language, Translations> = {
       prompt_save_success: "Prompt saved",
       prompt_save_fail: "Save failed",
       ai_reanalyze: "Run Analysis",
+      no_selection_title: "No script selected",
+      no_selection_desc: "Select a script from the left, or use \"AI Generate SQL\" above",
     },
     history: {
       title: "Flyway Schema History",
@@ -411,6 +415,8 @@ const translations: Record<Language, Translations> = {
       prompt_save_success: "已保存",
       prompt_save_fail: "保存失败",
       ai_reanalyze: "AI分析",
+      no_selection_title: "尚未选择脚本",
+      no_selection_desc: "请在左侧选择脚本，或点击上方“AI 生成 SQL”创建",
     },
     history: {
       title: "Flyway 版本历史",
