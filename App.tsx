@@ -351,7 +351,7 @@ const App: React.FC = () => {
   const selectedScript = scripts.find(s => s.id === selectedScriptId);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#1e1e1e]">
+    <div className="flex h-screen overflow-hidden bg-[#1e1e1e] relative">
       <div style={{ width: sidebarWidth }} className="shrink-0">
         <Sidebar 
           scripts={scripts} 
@@ -526,18 +526,19 @@ const App: React.FC = () => {
                       <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          code({node, inline, className, children, ...props}) {
+                          code: ({ inline, className, children, ...props }: any) => {
                             const match = /language-(\w+)/.exec(className || '');
                             if (!inline) {
+                              const text = Array.isArray(children) ? String(children[0]).replace(/\n$/, '') : String(children).replace(/\n$/, '');
                               return (
                                 <SyntaxHighlighter
                                   {...props}
                                   PreTag="div"
-                                  language={(match && match[1]) || 'sql'}
+                                  language={(match?.[1]) || 'sql'}
                                   style={vscDarkPlus}
                                   wrapLongLines
                                 >
-                                  {String(children).replace(/\n$/, '')}
+                                  {text}
                                 </SyntaxHighlighter>
                               );
                             }
@@ -558,6 +559,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      <div className="absolute bottom-2 right-3 text-[10px] text-gray-600 pointer-events-none">Powered by ApegGeek</div>
     </div>
   );
 };

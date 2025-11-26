@@ -11,7 +11,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const { t } = useLanguage();
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
-  const bgUrl = new URL('../assets/images/bg.jpeg', import.meta.url).href;
+  const bgUrl = new URL('../assets/images/bg.png', import.meta.url).href;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,13 +27,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       className="min-h-screen relative flex flex-col items-center justify-center text-gray-200"
       style={{
         backgroundImage: `url(${bgUrl})`,
-        backgroundSize: '50%',
+        backgroundSize: '80%',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
         backgroundColor: '#020204'
       }}
     >
-      <div className="w-full max-w-md p-8 bg-flyway-panel border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden z-10">
+      <div className="w-full max-w-md p-8 bg-black/50 border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden z-10">
         
         {/* Decorative background element */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
@@ -85,6 +85,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </p>
         </div>
       </div>
+      <div className="absolute bottom-3 left-0 right-0 text-center text-[10px] text-gray-600">Powered by ApegGeek</div>
     </div>
   );
 };
