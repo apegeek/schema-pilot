@@ -33,7 +33,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         backgroundColor: '#020204'
       }}
     >
-      <div className="w-full max-w-md p-8 bg-black/50 border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden z-10">
+      <div className="w-full max-w-md p-8 bg-black/50 border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden z-10" style={{ backdropFilter: 'blur(10px)' }}>
         
         {/* Decorative background element */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
