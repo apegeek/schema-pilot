@@ -91,6 +91,21 @@ pnpm run preview
     ```
 - 开发服务内置了部分后端路由（文件读取/上传、连接测试），生产环境请按需替换为你自己的后端服务。
 
+## 系统设计：Redis 缓存与键名约定
+- 缓存用途：存放 AI 模型配置（服务商、模型名、API Key），便于前端与后端统一读取，避免每次手动填写。
+- 键空间：
+  - `schema-pilot:ai:config`：AI 模型配置对象，结构如下：
+    - `provider`：`Gemini` 或 `DeepSeek`
+    - `model`：例如 `gemini-2.5-flash`、`deepseek-reasoner`
+    - `apiKey`：对应服务商的 API 密钥
+- 路由接口：
+  - `POST /api/ai/config/save`：保存 AI 配置到 Redis（需已启用 Redis 并正确设置连接信息）
+  - `GET /api/ai/config/get`：读取 AI 配置；未设置时返回 `null`
+  - `POST /api/ai/analyze`：AI 分析 SQL 脚本，默认优先使用请求体中的 `config.ai`，若缺失则回退到 Redis 中的全局配置
+- 说明：
+  - 开发模式下，Redis 的连接信息在“设置-缓存 (Redis)”中配置；启用后保存即生效。
+  - 为安全起见，生产环境应将 Redis 与 AI Key 的读写代理到后端服务，并做好权限控制与审计。
+
 ## SEO 与曝光建议
 - 项目名与描述：
   - 英文：`SchemaPilot Studio — Visual Flyway Migration Workbench`

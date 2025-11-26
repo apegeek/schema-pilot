@@ -21,6 +21,14 @@ export interface ScriptFile {
 
 export type DbType = 'MySQL' | 'PostgreSQL' | 'MariaDB' | 'Oracle';
 
+export type AiProvider = 'Gemini' | 'DeepSeek';
+
+export interface AiModelConfig {
+  provider: AiProvider;
+  model: string;
+  apiKey?: string;
+}
+
 export interface RedisConfig {
   enabled: boolean;
   host: string;
@@ -40,6 +48,7 @@ export interface DbConfig {
   scriptsPath: string;
   appPassword?: string;
   redis?: RedisConfig; // New Redis Configuration
+  ai?: AiModelConfig; // AI Model Configuration
 }
 
 export interface LogEntry {

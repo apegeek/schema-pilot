@@ -9,9 +9,10 @@ interface LogPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onClear: () => void;
+  height?: number;
 }
 
-const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen, onClose, onClear }) => {
+const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen, onClose, onClear, height }) => {
   const { t } = useLanguage();
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -24,7 +25,7 @@ const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen, onClose, onClear }) =
   if (!isOpen) return null;
 
   return (
-    <div className="h-48 bg-black border-t border-flyway-border flex flex-col font-mono text-xs shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.5)]">
+    <div style={{ height: height ?? 192 }} className="bg-black border-t border-flyway-border flex flex-col font-mono text-xs shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.5)]">
       <div className="flex items-center justify-between px-3 py-1 bg-flyway-panel border-b border-flyway-border">
         <div className="flex items-center gap-2 text-gray-400">
           <Terminal className="w-3.5 h-3.5" />

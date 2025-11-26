@@ -11,6 +11,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const { t } = useLanguage();
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+  const bgUrl = new URL('../assets/images/bg.jpeg', import.meta.url).href;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,8 +23,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e] flex flex-col items-center justify-center text-gray-200">
-      <div className="w-full max-w-md p-8 bg-flyway-panel border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden">
+    <div
+      className="min-h-screen relative flex flex-col items-center justify-center text-gray-200"
+      style={{
+        backgroundImage: `url(${bgUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundColor: 'rgba(1, 1, 1, 0.45)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)'
+        }}
+      ></div>
+      <div className="w-full max-w-md p-8 bg-flyway-panel border border-flyway-border rounded-lg shadow-2xl relative overflow-hidden z-10">
         
         {/* Decorative background element */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>

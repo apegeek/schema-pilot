@@ -7,7 +7,7 @@ import ConfigModal from './components/ConfigModal';
 import HistoryTable from './components/HistoryTable';
 import LoginScreen from './components/LoginScreen';
 import { ScriptFile, DbConfig, LogEntry, MigrationStatus, HistoryRecord } from './types';
-import { PanelBottom, GripVertical } from 'lucide-react';
+import { PanelBottom, GripVertical, GripHorizontal } from 'lucide-react';
 import { cacheService } from './services/cacheService';
 import { dbService } from './services/dbService';
 import { useLanguage } from './contexts/LanguageContext';
@@ -34,9 +34,16 @@ const App: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(420);
   const [editorWidth, setEditorWidth] = useState<number>(520);
-  const [dragging, setDragging] = useState<'none' | 'sidebar' | 'editor'>('none');
+  const [dragging, setDragging] = useState<'none' | 'sidebar' | 'editor' | 'log'>('none');
   const mainRef = useRef<HTMLDivElement | null>(null);
+  const columnRef = useRef<HTMLDivElement | null>(null);
   const [isEditorFull, setIsEditorFull] = useState(false);
+  const [logHeight, setLogHeight] = useState<number>(192);
+  const [isGenOpen, setIsGenOpen] = useState(false);
+  const [genDesc, setGenDesc] = useState("");
+  const [genOut, setGenOut] = useState("");
+  const [genErr, setGenErr] = useState("");
+  const [genLoading, setGenLoading] = useState(false);
 
   useEffect(() => {
     const auth = cacheService.getAuthToken();
@@ -56,6 +63,11 @@ const App: React.FC = () => {
           const newWidth = clamp(rect.right - e.clientX, 320, Math.min(900, rect.width - 420));
           setEditorWidth(newWidth);
         }
+      } else if (dragging === 'log') {
+        const rect = columnRef.current?.getBoundingClientRect();
+        const bottom = rect ? rect.bottom : window.innerHeight;
+        const newHeight = clamp(bottom - e.clientY, 120, 480);
+        setLogHeight(newHeight);
       }
     };
     const onUp = () => setDragging('none');
@@ -180,21 +192,45 @@ const App: React.FC = () => {
     loadData(config);
   };
 
-  const handleSaveScript = async (id: string, newContent: string) => {
+  const handleOpenGen = () => {
+    setIsGenOpen(true);
+    setGenDesc('');
+    setGenOut('');
+    setGenErr('');
+  };
+  const handleGenerateSql = async () => {
+    setGenErr('');
+    setGenOut('');
+    setGenLoading(true);
+    const out = await dbService.generateSql(undefined, genDesc);
+    setGenLoading(false);
+    setGenOut(out);
+  };
+  const handleSaveGenerated = async () => {
+    const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    const name = `V${Date.now()}__${slugify('ai_generated')}.sql`;
+    const ok = await dbService.uploadScriptToPath(config.scriptsPath, name, genOut);
+    if (ok) handleRefresh();
+    setIsGenOpen(false);
+  };
+
+  const handleSaveScript = async (id: string, newContent: string): Promise<boolean> => {
     const s = scripts.find(x => x.id === id);
-    if (!s) return;
+    if (!s) return false;
     if (s.status !== MigrationStatus.PENDING) {
       addLog('WARN', 'Save blocked: only pending scripts can be edited.');
-      return;
+      return false;
     }
-    const ok = await dbService.saveScriptContent(config.scriptsPath, s.path || '', s.name, newContent);
-    if (ok) {
+    const res = await dbService.saveScriptContent(config.scriptsPath, s.path || '', s.name, newContent);
+    if (res.ok) {
       const updated = scripts.map(x => x.id === id ? { ...x, content: newContent } : x);
       setScripts(updated);
       cacheService.saveScripts(config.scriptsPath, updated, config);
       addLog('SUCCESS', `Saved script: ${s.name}`);
+      return true;
     } else {
-      addLog('ERROR', `Failed to save script: ${s.name}`);
+      addLog('ERROR', `Failed to save script: ${s.name} (${res.error})`);
+      return false;
     }
   };
 
@@ -206,37 +242,16 @@ const App: React.FC = () => {
     addLog('INFO', `Connecting to ${config.host}...`);
     addLog('INFO', `Executing migration: ${script.name}`);
     
+    const started = Date.now();
     try {
-      // Simulate network latency
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      const installedOn = new Date().toISOString();
-      const executionTime = Math.floor(Math.random() * 200) + 20;
-      const checksum = Math.floor(Math.random() * 1000000000);
-
-      // 1. Create new Record
-      const newRecord: HistoryRecord = {
-        installed_rank: history.length + 1,
-        version: script.version,
-        description: script.description,
-        type: 'SQL',
-        script: script.name,
-        checksum: checksum,
-        installed_by: config.user,
-        installed_on: installedOn,
-        execution_time: executionTime,
-        success: true
-      };
-
-      // 2. Update State (which triggers Comparison Logic effect)
-      const newHistory = [...history, newRecord];
-      setHistory(newHistory);
-      
-      // 3. Update Cache
-      cacheService.saveHistory(config, newHistory);
-      
-      addLog('SUCCESS', `Migration ${script.version} applied successfully in ${executionTime}ms.`);
-    
+      const res = await dbService.executeMigration(config, { name: script.name, content: script.content });
+      if (!res.ok) {
+        addLog('ERROR', `Migration failed: ${res.error || 'Unknown error'}`);
+      } else {
+        const ms = Date.now() - started;
+        addLog('SUCCESS', `Migration executed successfully in ${ms}ms.`);
+        await loadData(config);
+      }
     } catch (e) {
       addLog('ERROR', `Migration failed: ${(e as Error).message}`);
     } finally {
@@ -273,7 +288,7 @@ const App: React.FC = () => {
       >
         <GripVertical className="w-3 h-3 text-gray-500 pointer-events-none" />
       </div>
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0" ref={columnRef}>
         <div className="flex flex-1 min-w-0 overflow-hidden" ref={mainRef}>
           {isEditorFull ? (
             <div className="flex-1 bg-[#1e1e1e]">
@@ -289,14 +304,34 @@ const App: React.FC = () => {
                   isFullScreen
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-gray-500 select-none bg-[#1e1e1e] flex-col">
-                  <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
-                     <PanelBottom className="w-10 h-10 opacity-30" />
+                <div className="flex flex-col h-full bg-[#1e1e1e]">
+                  <div className="flex flex-col gap-2 p-3 border-b border-flyway-border bg-flyway-panel">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-transparent text-gray-400 hover:text-green-400 cursor-pointer">
+                        <input type="file" accept=".sql" className="hidden" onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const text = await file.text();
+                          const ok = await dbService.uploadScriptToPath(config.scriptsPath, file.name, text);
+                          if (ok) handleRefresh();
+                        }} />
+                        {t.editor.btn_upload}
+                      </label>
+                      <button
+                        onClick={handleOpenGen}
+                        className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-purple-700 hover:bg-purple-600 text-white"
+                      >
+                        {t.editor.gen_open}
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-400 mb-2">{t.sidebar.no_scripts}</h3>
-                  <p className="text-sm text-gray-600 max-w-sm text-center">
-                     {t.sidebar.back_link}
-                  </p>
+                  <div className="flex-1 flex items-center justify-center text-gray-500 select-none bg-[#1e1e1e] flex-col">
+                    <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
+                      <PanelBottom className="w-10 h-10 opacity-30" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-400 mb-2">{t.sidebar.no_scripts}</h3>
+                    <p className="text-sm text-gray-600 max-w-sm text-center">{t.sidebar.back_link}</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -324,14 +359,34 @@ const App: React.FC = () => {
                     onToggleFullScreen={() => setIsEditorFull(true)}
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-gray-500 select-none bg-[#1e1e1e] flex-col">
-                    <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
-                       <PanelBottom className="w-10 h-10 opacity-30" />
+                  <div className="flex flex-col h-full bg-[#1e1e1e]">
+                    <div className="flex flex-col gap-2 p-3 border-b border-flyway-border bg-flyway-panel">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-transparent text-gray-400 hover:text-green-400 cursor-pointer">
+                          <input type="file" accept=".sql" className="hidden" onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const text = await file.text();
+                            const ok = await dbService.uploadScriptToPath(config.scriptsPath, file.name, text);
+                            if (ok) handleRefresh();
+                          }} />
+                          {t.editor.btn_upload}
+                        </label>
+                        <button
+                          onClick={handleOpenGen}
+                          className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-purple-700 hover:bg-purple-600 text-white"
+                        >
+                          {t.editor.gen_open}
+                        </button>
+                      </div>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-400 mb-2">{t.sidebar.no_scripts}</h3>
-                    <p className="text-sm text-gray-600 max-w-sm text-center">
-                       {t.sidebar.back_link}
-                    </p>
+                    <div className="flex-1 flex items-center justify-center text-gray-500 select-none bg-[#1e1e1e] flex-col">
+                      <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
+                        <PanelBottom className="w-10 h-10 opacity-30" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-400 mb-2">{t.sidebar.no_scripts}</h3>
+                      <p className="text-sm text-gray-600 max-w-sm text-center">{t.sidebar.back_link}</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -346,11 +401,21 @@ const App: React.FC = () => {
              </button>
           </div>
         )}
+        {isLogOpen && (
+          <div
+            className="h-2 bg-flyway-border/50 hover:bg-blue-500 cursor-row-resize flex items-center justify-center"
+            onMouseDown={() => setDragging('log')}
+            title={t.logs.resize_tooltip}
+          >
+            <GripHorizontal className="w-3 h-3 text-gray-500 pointer-events-none" />
+          </div>
+        )}
         <LogPanel 
           logs={logs} 
           isOpen={isLogOpen} 
           onClose={() => setIsLogOpen(false)} 
           onClear={() => setLogs([])}
+          height={logHeight}
         />
       </div>
       <ConfigModal 
@@ -360,11 +425,45 @@ const App: React.FC = () => {
         onSave={(newConfig) => {
           setConfig(newConfig);
           addLog('INFO', 'Configuration updated. Initiating reload...');
+          dbService.saveAiConfig(newConfig).then(ok => {
+            if (ok) addLog('SUCCESS', 'AI configuration saved to Redis.');
+            else addLog('WARN', 'AI configuration not saved (Redis disabled or error).');
+          });
           if (isAuthenticated) {
             loadData(newConfig);
           }
         }}
       />
+      {isGenOpen && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-[#1e1e1e] w-[560px] border border-flyway-border rounded-lg shadow-xl">
+            <div className="p-4 border-b border-flyway-border text-gray-200 font-semibold">{t.editor.gen_title}</div>
+            <div className="p-4 space-y-3">
+              <label className="text-xs text-gray-400">{t.editor.gen_desc_label}</label>
+              <textarea
+                value={genDesc}
+                onChange={(e) => setGenDesc(e.target.value)}
+                className="w-full h-28 bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200"
+                placeholder={t.editor.gen_desc_placeholder}
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setIsGenOpen(false)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
+                <button onClick={handleGenerateSql} disabled={genLoading || !genDesc.trim()} className={`px-3 py-1.5 text-xs rounded ${genLoading ? 'bg-purple-800 text-gray-300' : 'bg-purple-700 text-white hover:bg-purple-600'} border border-purple-600`}>{t.editor.gen_generate}</button>
+              </div>
+              {genErr && <div className="text-xs text-red-400">{genErr}</div>}
+              {genOut && (
+                <div className="mt-2">
+                  <div className="text-xs text-gray-400 mb-1">{t.editor.gen_output_title}</div>
+                  <pre className="bg-black/30 border border-flyway-border rounded p-2 text-xs text-gray-200 whitespace-pre-wrap">{genOut}</pre>
+                  <div className="flex justify-end mt-2">
+                    <button onClick={handleSaveGenerated} className="px-3 py-1.5 text-xs rounded bg-green-700 text-white border border-green-600 hover:bg-green-600">{t.editor.gen_save}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

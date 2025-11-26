@@ -29,11 +29,14 @@ interface Translations {
     back_link: string;
     upload_tooltip: string;
     resize_tooltip: string;
+    merge_tooltip: string;
   };
   config: {
     title: string;
     tab_db: string;
     tab_redis: string;
+    tab_ai: string;
+    tab_prompt: string;
     tab_security: string;
     db_type: string;
     db_schema: string;
@@ -65,6 +68,20 @@ interface Translations {
     sec_hint: string;
     btn_save: string;
     btn_cancel: string;
+    ai_title: string;
+    ai_provider: string;
+    ai_model: string;
+    ai_api_key: string;
+    ai_test_btn: string;
+    ai_testing: string;
+    ai_test_success: string;
+    ai_test_fail: string;
+    ai_test_idle: string;
+    prompt_desc: string;
+    prompt_load_default: string;
+    prompt_save: string;
+    prompt_save_success: string;
+    prompt_save_fail: string;
   };
   editor: {
     status_applied: string;
@@ -82,6 +99,26 @@ interface Translations {
     btn_upload: string;
     btn_fullscreen: string;
     btn_exit_fullscreen: string;
+    btn_apply_fix: string;
+    ai_fix_not_found: string;
+    btn_insert_ai_hint: string;
+    btn_accept_fix: string;
+    btn_reject_fix: string;
+    gen_open: string;
+    gen_title: string;
+    gen_desc_label: string;
+    gen_desc_placeholder: string;
+    gen_generate: string;
+    gen_output_title: string;
+    gen_save: string;
+    gen_cancel: string;
+    prompt_open: string;
+    prompt_title: string;
+    prompt_load_default: string;
+    prompt_save: string;
+    prompt_save_success: string;
+    prompt_save_fail: string;
+    ai_reanalyze: string;
   };
   history: {
     title: string;
@@ -102,14 +139,15 @@ interface Translations {
   logs: {
     title: string;
     empty: string;
+    resize_tooltip: string;
   };
 }
 
 const translations: Record<Language, Translations> = {
   en: {
     login: {
-      title: "Flyway Visualizer",
-      subtitle: "Restricted Access Environment",
+      title: "SchemaPilot Studio",
+      subtitle: "Database Migration Visualization Workbench",
       label_password: "Admin Password",
       placeholder: "Enter password...",
       btn_login: "Access System",
@@ -117,7 +155,7 @@ const translations: Record<Language, Translations> = {
       footer_default: "Default password:",
     },
     sidebar: {
-      title: "FlywayHub",
+      title: "SchemaPilot Studio",
       refresh_tooltip: "Refresh Cache & State",
       config_tooltip: "Configure Database",
       logout_tooltip: "Logout",
@@ -131,12 +169,15 @@ const translations: Record<Language, Translations> = {
       history_desc: "Viewing raw records from",
       back_link: "Back to Scripts",
       upload_tooltip: "Upload SQL script",
-      resize_tooltip: "Drag to resize"
+      resize_tooltip: "Drag to resize",
+      merge_tooltip: "Merge pending scripts"
     },
     config: {
       title: "System Configuration",
       tab_db: "Database",
       tab_redis: "Cache (Redis)",
+      tab_ai: "AI Model",
+      tab_prompt: "AI Prompt",
       tab_security: "Security",
       db_type: "Database Type",
       db_schema: "Schema",
@@ -168,6 +209,20 @@ const translations: Record<Language, Translations> = {
       sec_hint: "Keep this value secure. Default is 'admin' for demo only.",
       btn_save: "Save",
       btn_cancel: "Cancel",
+      ai_title: "AI Configuration",
+      ai_provider: "Provider",
+      ai_model: "Default Model",
+      ai_api_key: "API Key",
+      ai_test_btn: "Test AI",
+      ai_testing: "Testing AI...",
+      ai_test_success: "AI is reachable!",
+      ai_test_fail: "AI test failed",
+      ai_test_idle: "Configure provider, key and model, then test.",
+      prompt_desc: "Edit the expert prompt used for SQL analysis.",
+      prompt_load_default: "Load Default",
+      prompt_save: "Save to Cache",
+      prompt_save_success: "Prompt saved",
+      prompt_save_fail: "Save failed",
     },
     editor: {
       status_applied: "Applied",
@@ -178,13 +233,33 @@ const translations: Record<Language, Translations> = {
       tab_sql: "SQL Script",
       tab_ai: "AI Analysis",
       readonly_alert: "Read-only: Script already applied",
-      ai_analyzing: "Gemini is analyzing your schema changes...",
+      ai_analyzing: "AI is analyzing your schema changes...",
       ai_title: "Migration Analysis",
       ai_desc_start: "Gemini is analyzing",
       ai_desc_end: "...",
       btn_upload: "Upload",
       btn_fullscreen: "Fullscreen",
-      btn_exit_fullscreen: "Exit Fullscreen"
+      btn_exit_fullscreen: "Exit Fullscreen",
+      btn_apply_fix: "Apply Fix & Save",
+      ai_fix_not_found: "No SQL fix snippet found in AI output",
+      btn_insert_ai_hint: "Insert AI Suggestions as comment",
+      btn_accept_fix: "Accept Fix",
+      btn_reject_fix: "Reject",
+      gen_open: "AI Generate SQL",
+      gen_title: "Generate DDL from requirements",
+      gen_desc_label: "Describe your table/design requirements",
+      gen_desc_placeholder: "Entities, fields, constraints, indexes, relationships...",
+      gen_generate: "Generate",
+      gen_output_title: "Generated SQL",
+      gen_save: "Save as new version",
+      gen_cancel: "Cancel",
+      prompt_open: "Edit Prompt",
+      prompt_title: "Expert Prompt for Analysis",
+      prompt_load_default: "Load Default",
+      prompt_save: "Save to Cache",
+      prompt_save_success: "Prompt saved",
+      prompt_save_fail: "Save failed",
+      ai_reanalyze: "Run Analysis",
     },
     history: {
       title: "Flyway Schema History",
@@ -204,13 +279,14 @@ const translations: Record<Language, Translations> = {
     },
     logs: {
       title: "Execution Logs",
-      empty: "No logs generated yet."
+      empty: "No logs generated yet.",
+      resize_tooltip: "Drag to adjust height"
     }
   },
   zh: {
     login: {
-      title: "Flyway 可视化工具",
-      subtitle: "受限访问环境",
+      title: "SchemaPilot Studio",
+      subtitle: "数据库迁移可视化工作台",
       label_password: "管理员密码",
       placeholder: "请输入密码...",
       btn_login: "进入系统",
@@ -218,7 +294,7 @@ const translations: Record<Language, Translations> = {
       footer_default: "默认密码：",
     },
     sidebar: {
-      title: "Flyway控制台",
+      title: "SchemaPilot Studio",
       refresh_tooltip: "刷新缓存与状态",
       config_tooltip: "数据库配置",
       logout_tooltip: "退出登录",
@@ -232,12 +308,15 @@ const translations: Record<Language, Translations> = {
       history_desc: "数据来源表",
       back_link: "返回脚本列表",
       upload_tooltip: "上传 SQL 脚本",
-      resize_tooltip: "拖拽以调整宽度"
+      resize_tooltip: "拖拽以调整宽度",
+      merge_tooltip: "合并待执行脚本"
     },
     config: {
       title: "系统配置",
       tab_db: "数据库",
       tab_redis: "缓存 (Redis)",
+      tab_ai: "AI 模型",
+      tab_prompt: "提示词",
       tab_security: "安全",
       db_type: "数据库类型",
       db_schema: "Schema",
@@ -269,6 +348,20 @@ const translations: Record<Language, Translations> = {
       sec_hint: "请妥善保管。演示默认 'admin'。",
       btn_save: "保存",
       btn_cancel: "取消",
+      ai_title: "AI 配置",
+      ai_provider: "服务商",
+      ai_model: "默认模型",
+      ai_api_key: "API 密钥",
+      ai_test_btn: "测试 AI",
+      ai_testing: "AI 测试中...",
+      ai_test_success: "AI 可用！",
+      ai_test_fail: "AI 测试失败",
+      ai_test_idle: "填写服务商、密钥与模型后进行测试。",
+      prompt_desc: "编辑用于 SQL 分析的资深专家提示词。",
+      prompt_load_default: "加载默认",
+      prompt_save: "保存到缓存",
+      prompt_save_success: "已保存",
+      prompt_save_fail: "保存失败",
     },
     editor: {
       status_applied: "已应用",
@@ -279,13 +372,33 @@ const translations: Record<Language, Translations> = {
       tab_sql: "SQL 脚本",
       tab_ai: "AI 智能分析",
       readonly_alert: "只读模式：脚本已应用",
-      ai_analyzing: "Gemini 正在分析您的 Schema 变更...",
+      ai_analyzing: "AI 正在分析您的 Schema 变更...",
       ai_title: "迁移影响分析",
       ai_desc_start: "Gemini 正在分析",
       ai_desc_end: "...",
       btn_upload: "上传",
       btn_fullscreen: "全屏",
-      btn_exit_fullscreen: "退出全屏"
+      btn_exit_fullscreen: "退出全屏",
+      btn_apply_fix: "应用修复并保存",
+      ai_fix_not_found: "AI 输出中未找到 SQL 修复片段",
+      btn_insert_ai_hint: "插入AI建议为注释并保存",
+      btn_accept_fix: "接受修复",
+      btn_reject_fix: "拒绝",
+      gen_open: "AI 生成 SQL",
+      gen_title: "根据需求生成 DDL",
+      gen_desc_label: "描述你的表/设计需求",
+      gen_desc_placeholder: "实体、字段、约束、索引、关系...",
+      gen_generate: "生成",
+      gen_output_title: "生成的 SQL",
+      gen_save: "保存为新版本",
+      gen_cancel: "取消",
+      prompt_open: "编辑提示词",
+      prompt_title: "用于分析的资深专家提示词",
+      prompt_load_default: "加载默认",
+      prompt_save: "保存到缓存",
+      prompt_save_success: "已保存",
+      prompt_save_fail: "保存失败",
+      ai_reanalyze: "AI分析",
     },
     history: {
       title: "Flyway 版本历史",
@@ -305,7 +418,8 @@ const translations: Record<Language, Translations> = {
     },
     logs: {
       title: "执行日志",
-      empty: "暂无日志。"
+      empty: "暂无日志。",
+      resize_tooltip: "拖拽以调整高度"
     }
   }
 };

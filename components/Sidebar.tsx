@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScriptFile, MigrationStatus, DbConfig, TreeItem } from '../types';
-import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload } from 'lucide-react';
+import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, GitMerge } from 'lucide-react';
 import { buildScriptTree } from '../utils/treeUtils';
 import { dbService } from '../services/dbService';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [treeData, setTreeData] = useState<TreeItem[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [isMerging, setIsMerging] = useState(false);
 
   useEffect(() => {
     const tree = buildScriptTree(scripts);
@@ -69,6 +70,33 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const toggleLanguage = () => {
     setLanguage(language === 'zh' ? 'en' : 'zh');
+  };
+
+  const mergePendingScripts = async () => {
+    if (isUploading || isMerging) return;
+    const pending = scripts.filter(s => s.status === MigrationStatus.PENDING);
+    if (pending.length === 0) return;
+    setIsMerging(true);
+    const cmp = (a: ScriptFile, b: ScriptFile) => {
+      const pa = (a.version || '').split('.').map(n => Number(n)).filter(n => !Number.isNaN(n));
+      const pb = (b.version || '').split('.').map(n => Number(n)).filter(n => !Number.isNaN(n));
+      if (pa.length && pb.length) {
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+          const va = pa[i] ?? 0;
+          const vb = pb[i] ?? 0;
+          if (va !== vb) return va - vb;
+        }
+        return 0;
+      }
+      return a.name.localeCompare(b.name, 'en', { numeric: true });
+    };
+    const ordered = [...pending].sort(cmp);
+    const merged = ordered.map(s => s.content.trim()).filter(Boolean).join('\n\n');
+    const fileName = `V${Date.now()}__merged.sql`;
+    const ok = await dbService.uploadScriptToPath(config.scriptsPath, fileName, merged);
+    setIsMerging(false);
+    if (ok) onRefresh();
   };
 
   const getStatusIcon = (status: MigrationStatus) => {
@@ -163,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <RefreshCw className="w-4 h-4" />
             </button>
-            <label className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-green-400 cursor-pointer" title={t.sidebar.upload_tooltip}>
+            <label className="p-1.5 hover:bg:white/10 rounded transition-colors text-gray-400 hover:text-green-400 cursor-pointer" title={t.sidebar.upload_tooltip}>
               <input type="file" accept=".sql" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
@@ -175,6 +203,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               }} />
               <Upload className={`w-4 h-4 ${isUploading ? 'animate-pulse' : ''}`} />
             </label>
+            <button
+              onClick={mergePendingScripts}
+              className={`p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-yellow-300 ${isMerging ? 'animate-pulse' : ''}`}
+              title={t.sidebar.merge_tooltip}
+              disabled={isMerging}
+            >
+              <GitMerge className="w-4 h-4" />
+            </button>
             <button 
               onClick={onOpenConfig}
               className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"

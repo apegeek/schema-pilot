@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { DbConfig, DbType } from '../types';
-import { X, Database, FolderOpen, Server, Key, Shield, CheckCircle2, AlertTriangle, Layers, Zap } from 'lucide-react';
+import { X, Database, FolderOpen, Server, Key, Shield, CheckCircle2, AlertTriangle, Layers, Zap, BrainCircuit, FileText } from 'lucide-react';
+import { dbService } from '../services/dbService';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ConfigModalProps {
@@ -21,7 +22,7 @@ const DEFAULT_PORTS: Record<DbType, string> = {
 const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClose }) => {
   const { t } = useLanguage();
   const [formData, setFormData] = useState<DbConfig>(config);
-  const [activeSection, setActiveSection] = useState<'db' | 'redis' | 'security'>('db');
+  const [activeSection, setActiveSection] = useState<'db' | 'redis' | 'ai' | 'prompt' | 'security'>('db');
   
   // Connection Test State
   const [isTesting, setIsTesting] = useState(false);
@@ -30,6 +31,12 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
   const [isRedisTesting, setIsRedisTesting] = useState(false);
   const [redisTestStatus, setRedisTestStatus] = useState<'none' | 'success' | 'error'>('none');
   const [redisTestMessage, setRedisTestMessage] = useState('');
+  const [isAiTesting, setIsAiTesting] = useState(false);
+  const [aiTestStatus, setAiTestStatus] = useState<'none' | 'success' | 'error'>('none');
+  const [aiTestMessage, setAiTestMessage] = useState('');
+  const [promptText, setPromptText] = useState('');
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptStatus, setPromptStatus] = useState<'none' | 'success' | 'error'>('none');
 
   // Sync internal state with props when modal opens
   useEffect(() => {
@@ -37,8 +44,21 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
       setFormData(config);
       setActiveSection('db');
       setTestStatus('none');
+      setAiTestStatus('none');
+      setAiTestMessage('');
     }
   }, [isOpen, config]);
+
+  useEffect(() => {
+    const loadPrompt = async () => {
+      setPromptLoading(true);
+      const text = await dbService.getAnalyzePrompt('cache');
+      setPromptText(text || '');
+      setPromptLoading(false);
+      setPromptStatus('none');
+    };
+    if (isOpen && activeSection === 'prompt') loadPrompt();
+  }, [isOpen, activeSection]);
 
   if (!isOpen) return null;
 
@@ -58,6 +78,59 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
       }
     }));
     setRedisTestStatus('none');
+  };
+
+  const handleAiChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => {
+      const prevAi = prev.ai || { provider: 'Gemini', model: 'gemini-2.5-flash', apiKey: '' };
+      let nextAi = { ...prevAi, [name]: value };
+      if (name === 'provider') {
+        const isSwitchToDeepSeek = value === 'DeepSeek';
+        const isSwitchToGemini = value === 'Gemini';
+        const currentModel = (prevAi.model || '').trim();
+        const looksGemini = /gemini/i.test(currentModel);
+        const looksDeepSeek = /deepseek/i.test(currentModel);
+        if (!currentModel) {
+          nextAi.model = isSwitchToDeepSeek ? 'deepseek-reasoner' : 'gemini-2.5-flash';
+        } else if (isSwitchToDeepSeek && looksGemini) {
+          nextAi.model = 'deepseek-reasoner';
+        } else if (isSwitchToGemini && looksDeepSeek) {
+          nextAi.model = 'gemini-2.5-flash';
+        }
+      }
+      return { ...prev, ai: nextAi };
+    });
+  };
+
+  const handleTestAi = async () => {
+    setIsAiTesting(true);
+    setAiTestMessage('');
+    if (!formData.ai?.provider || !formData.ai?.model || !formData.ai?.apiKey) {
+      setIsAiTesting(false);
+      setAiTestStatus('error');
+      setAiTestMessage(t.config.ai_test_fail);
+      return;
+    }
+    try {
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: formData, script: { name: 'healthcheck.sql', content: 'SELECT 1;' } })
+      });
+      const data = await res.json();
+      if (res.ok && (data as any)?.ok) {
+        setAiTestStatus('success');
+      } else {
+        setAiTestStatus('error');
+        setAiTestMessage(String((data as any)?.error || t.config.ai_test_fail));
+      }
+    } catch (e: any) {
+      setAiTestStatus('error');
+      setAiTestMessage(String(e?.message || t.config.ai_test_fail));
+    } finally {
+      setIsAiTesting(false);
+    }
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -140,7 +213,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-flyway-panel w-[600px] border border-flyway-border rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-flyway-panel w-[750px] h-[600px] border border-flyway-border rounded-lg shadow-2xl flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-flyway-border">
           <h2 className="text-white font-semibold flex items-center gap-2">
             <Database className="w-5 h-5 text-blue-500" />
@@ -166,6 +239,20 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
              <Layers className="w-3.5 h-3.5" />
              {t.config.tab_redis}
            </button>
+          <button 
+            onClick={() => setActiveSection('ai')}
+            className={`flex-1 py-3 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeSection === 'ai' ? 'border-yellow-500 text-yellow-400 bg-white/5' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+          >
+            <BrainCircuit className="w-3.5 h-3.5" />
+            {t.config.tab_ai}
+          </button>
+          <button 
+            onClick={() => setActiveSection('prompt')}
+            className={`flex-1 py-3 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeSection === 'prompt' ? 'border-purple-500 text-purple-400 bg-white/5' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            {t.config.tab_prompt}
+          </button>
            <button 
              onClick={() => setActiveSection('security')}
              className={`flex-1 py-3 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeSection === 'security' ? 'border-purple-500 text-purple-400 bg-white/5' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
@@ -175,7 +262,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
            </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 p-6 overflow-y-auto">
           
           {activeSection === 'db' && (
             <div className="space-y-5">
@@ -232,8 +319,9 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
                     />
                 </div>
               </div>
-              
-              <div className="space-y-1">
+
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-4 space-y-1">
                   <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.db_name}</label>
                   <input
                     type="text"
@@ -242,10 +330,8 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
                     onChange={handleChange}
                     className="w-full bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
                   />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+                </div>
+                <div className="col-span-4 space-y-1">
                   <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.db_user}</label>
                   <input
                     type="text"
@@ -255,7 +341,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
                     className="w-full bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
-                <div className="space-y-1">
+                <div className="col-span-4 space-y-1">
                   <label className="text-xs font-semibold text-gray-400 uppercase flex items-center gap-2">
                     <Key className="w-3 h-3" /> {t.config.db_pass}
                   </label>
@@ -415,6 +501,117 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
             </div>
           )}
 
+          {activeSection === 'prompt' && (
+            <div className="space-y-4">
+              <div className="text-xs text-gray-400">{t.config.prompt_desc}</div>
+              <textarea
+                value={promptText}
+                onChange={(e) => { setPromptText(e.target.value); setPromptStatus('none'); }}
+                className="w-full h-[360px] bg-[#1e1e1e] border border-flyway-border rounded p-2 text-xs text-gray-200 font-mono"
+              />
+              <div className="flex items-center justify-between">
+                <div className="text-xs">
+                  {promptLoading && <span className="text-blue-400">Loading...</span>}
+                  {promptStatus === 'success' && <span className="text-green-400">{t.config.prompt_save_success}</span>}
+                  {promptStatus === 'error' && <span className="text-red-400">{t.config.prompt_save_fail}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setPromptLoading(true);
+                      const text = await dbService.getAnalyzePrompt('default');
+                      setPromptText(text || '');
+                      setPromptLoading(false);
+                    }}
+                    className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700"
+                  >
+                    {t.config.prompt_load_default}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await dbService.saveAnalyzePrompt(promptText, formData.redis);
+                      setPromptStatus(ok ? 'success' : 'error');
+                    }}
+                    className="px-3 py-1.5 text-xs rounded bg-purple-700 text-white border border-purple-600 hover:bg-purple-600"
+                  >
+                    {t.config.prompt_save}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'ai' && (
+            <div className="space-y-6 py-2">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.ai_provider}</label>
+                    <select
+                      name="provider"
+                      value={formData.ai?.provider || 'Gemini'}
+                      onChange={handleAiChange}
+                      className="w-full bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200 focus:border-yellow-500 focus:outline-none"
+                    >
+                      <option value="Gemini">Gemini</option>
+                      <option value="DeepSeek">DeepSeek</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.ai_model}</label>
+                    <input
+                      type="text"
+                      name="model"
+                      value={formData.ai?.model || ''}
+                      onChange={handleAiChange}
+                      className="w-full bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200 focus:border-yellow-500 focus:outline-none font-mono"
+                      placeholder="gemini-2.5-flash / deepseek-reasoner"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.ai_api_key}</label>
+                  <input
+                    type="password"
+                    name="apiKey"
+                    value={formData.ai?.apiKey || ''}
+                    onChange={handleAiChange}
+                    className="w-full bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200 focus:border-yellow-500 focus:outline-none font-mono"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between bg-black/20 p-3 rounded border border-flyway-border">
+                <div className="text-xs text-gray-400">
+                  {aiTestStatus === 'none' && t.config.ai_test_idle}
+                  {isAiTesting && <span className="text-yellow-400 animate-pulse">{t.config.ai_testing}</span>}
+                  {aiTestStatus === 'success' && !isAiTesting && (
+                    <span className="flex items-center gap-2 text-green-400">
+                      <CheckCircle2 className="w-4 h-4" />
+                      {t.config.ai_test_success}
+                    </span>
+                  )}
+                  {aiTestStatus === 'error' && !isAiTesting && (
+                    <span className="flex items-center gap-2 text-red-400">
+                      <AlertTriangle className="w-4 h-4" />
+                      {aiTestMessage || t.config.ai_test_fail}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestAi}
+                  disabled={isAiTesting}
+                  className={`px-3 py-1.5 text-xs font-bold rounded border transition-all ${isAiTesting ? 'bg-gray-700 border-gray-600 text-gray-400 cursor-wait' : 'bg-gray-800 border-gray-600 hover:bg-gray-700 hover:text-white text-gray-300'}`}
+                >
+                  {isAiTesting ? t.config.ai_testing : t.config.ai_test_btn}
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeSection === 'security' && (
             <div className="space-y-6 py-4">
                <div className="bg-amber-900/20 border border-amber-600/30 p-4 rounded text-amber-200 text-xs flex gap-3">
@@ -442,7 +639,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
             </div>
           )}
 
-          <div className="pt-6 mt-4 border-t border-flyway-border flex justify-end gap-3">
+          <div className="pt-1 mt-2 border-flyway-border flex justify-end gap-3">
              <button type="button" onClick={onClose} className="px-4 py-2 rounded text-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
                {t.config.btn_cancel}
              </button>
