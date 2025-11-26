@@ -68,7 +68,7 @@ export const dbService = {
     }
   }
   ,
-  executeMigration: async (config: DbConfig, script: { name: string; content: string }): Promise<{ ok: boolean; error?: string }> => {
+  executeMigration: async (config: DbConfig, script: { name: string; content: string }): Promise<{ ok: boolean; error?: string; historyError?: string }> => {
     try {
       const res = await fetch('/api/migrate', {
         method: 'POST',
@@ -76,7 +76,7 @@ export const dbService = {
         body: JSON.stringify({ config, script })
       });
       const data = await res.json();
-      return { ok: Boolean((data as any)?.ok), error: (data as any)?.error };
+      return { ok: Boolean((data as any)?.ok), error: (data as any)?.error, historyError: (data as any)?.historyError };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || 'Network error') };
     }

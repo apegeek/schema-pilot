@@ -250,6 +250,9 @@ const App: React.FC = () => {
       } else {
         const ms = Date.now() - started;
         addLog('SUCCESS', `Migration executed successfully in ${ms}ms.`);
+        if (res.historyError) {
+          addLog('WARN', `Migration executed but history table update failed: ${res.historyError}`);
+        }
         await loadData(config);
       }
     } catch (e) {

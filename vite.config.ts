@@ -76,6 +76,28 @@ export default defineConfig(({ mode }) => {
               return { version, description };
             };
 
+            const crc32 = (str: string) => {
+              let crc = 0 ^ (-1);
+              for (let i = 0; i < str.length; i++) {
+                crc = (crc >>> 8) ^ table[(crc ^ str.charCodeAt(i)) & 0xFF];
+              }
+              // Return signed 32-bit integer to match Flyway's Java int casting
+              // and avoid MySQL INT overflow if value > 2147483647
+              return (crc ^ (-1)) | 0;
+            };
+            const table = (() => {
+              let c;
+              const t = [];
+              for(let n =0; n < 256; n++){
+                  c = n;
+                  for(let k =0; k < 8; k++){
+                      c = ((c&1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+                  }
+                  t[n] = c;
+              }
+              return t;
+            })();
+
             const readPrompt = async (): Promise<string> => {
               try {
                 const client = createRedisClient({ socket: { host: '127.0.0.1', port: 6379 } });
@@ -93,41 +115,8 @@ export default defineConfig(({ mode }) => {
 
             server.middlewares.use(async (req, res, next) => {
               if (!req.url) return next();
-              if (req.url.startsWith('/api/scripts')) {
-                try {
-                  const u = new URL(req.url, 'http://localhost');
-                  const pathParam = u.searchParams.get('path') || '';
-                  const base = path.isAbsolute(pathParam)
-                    ? pathParam
-                    : path.resolve(projectRoot, pathParam);
-                  const files = walkSqlFiles(base);
-                  const scripts = files.map((full) => {
-                    const relDir = path.relative(base, path.dirname(full)).replace(/\\/g, '/');
-                    const name = path.basename(full);
-                    const { version, description } = parseName(name);
-                    const id = createHash('md5').update(full).digest('hex');
-                    const content = fs.readFileSync(full, 'utf-8');
-                    return {
-                      id,
-                      version,
-                      description,
-                      name,
-                      content,
-                      status: 'PENDING',
-                      type: 'SQL',
-                      path: relDir || ''
-                    };
-                  });
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify(scripts));
-                  return;
-                } catch (err) {
-                  res.statusCode = 500;
-                  res.end(JSON.stringify({ error: 'Failed to read scripts' }));
-                  return;
-                }
-              }
-
+              
+              // Handle specific POST endpoints first to avoid conflict with generic /api/scripts GET
               if (req.url.startsWith('/api/scripts/upload')) {
                 try {
                   const body = await readJson(req);
@@ -164,33 +153,68 @@ export default defineConfig(({ mode }) => {
 
               if (req.url.startsWith('/api/scripts/save')) {
                 try {
-              const body = await readJson(req);
-              const targetDir = String(body.path || '');
-              const relDir = String(body.dir || '');
-              const fileName = String(body.name || '');
-              const content = String(body.content || '');
-              if (!targetDir || !fileName) {
-                res.statusCode = 400;
-                res.end(JSON.stringify({ ok: false, error: 'Missing path or name' }));
+                  const body = await readJson(req);
+                  const targetDir = String(body.path || '');
+                  const relDir = String(body.dir || '');
+                  const fileName = String(body.name || '');
+                  const content = String(body.content || '');
+                  if (!targetDir || !fileName) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Missing path or name' }));
+                    return;
+                  }
+                  const base = path.isAbsolute(targetDir)
+                    ? targetDir
+                    : path.resolve(projectRoot, targetDir);
+                  const safeName = path.basename(fileName);
+                  const safeDir = relDir.replace(/\\/g, '/');
+                  const outDir = safeDir ? path.join(base, safeDir) : base;
+                  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+                  const outPath = path.join(outDir, safeName);
+                  fs.writeFileSync(outPath, content, 'utf-8');
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ ok: true }));
+                } catch (err: any) {
+                  console.error('[API Error] Save script failed:', err);
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Save failed') }));
+                }
                 return;
               }
-              const base = path.isAbsolute(targetDir)
-                ? targetDir
-                : path.resolve(projectRoot, targetDir);
-              const safeName = path.basename(fileName);
-              const safeDir = relDir.replace(/\\/g, '/');
-              const outDir = safeDir ? path.join(base, safeDir) : base;
-              if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-              const outPath = path.join(outDir, safeName);
-              fs.writeFileSync(outPath, content, 'utf-8');
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ ok: true }));
-            } catch (err: any) {
-              console.error('[API Error] Save script failed:', err);
-              res.statusCode = 500;
-              res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Save failed') }));
-            }
-                return;
+
+              if (req.url.startsWith('/api/scripts')) {
+                try {
+                  const u = new URL(req.url, 'http://localhost');
+                  const pathParam = u.searchParams.get('path') || '';
+                  const base = path.isAbsolute(pathParam)
+                    ? pathParam
+                    : path.resolve(projectRoot, pathParam);
+                  const files = walkSqlFiles(base);
+                  const scripts = files.map((full) => {
+                    const relDir = path.relative(base, path.dirname(full)).replace(/\\/g, '/');
+                    const name = path.basename(full);
+                    const { version, description } = parseName(name);
+                    const id = createHash('md5').update(full).digest('hex');
+                    const content = fs.readFileSync(full, 'utf-8');
+                    return {
+                      id,
+                      version,
+                      description,
+                      name,
+                      content,
+                      status: 'PENDING',
+                      type: 'SQL',
+                      path: relDir || ''
+                    };
+                  });
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify(scripts));
+                  return;
+                } catch (err) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ error: 'Failed to read scripts' }));
+                  return;
+                }
               }
 
               if (req.url.startsWith('/api/history')) {
@@ -257,6 +281,11 @@ export default defineConfig(({ mode }) => {
                     res.end(JSON.stringify({ ok: false, error: 'Missing config or script' }));
                     return;
                   }
+
+                  const startTime = Date.now();
+                  const { version, description } = parseName(sc.name);
+                  const checksum = crc32(sc.content);
+
                   if (cfg.type === 'MySQL' || cfg.type === 'MariaDB') {
                     const conn = await createConnection({
                       host: cfg.host,
@@ -266,8 +295,32 @@ export default defineConfig(({ mode }) => {
                       database: cfg.database,
                       multipleStatements: true
                     });
+                    
+                    // Run script
                     await conn.query(sc.content);
+
+                    // Record history
+                    const execTime = Date.now() - startTime;
+                    let historyErr = '';
+                    try {
+                        const [rows] = await conn.query('SELECT MAX(installed_rank) as max_rank FROM flyway_schema_history') as any;
+                        const nextRank = (Number(rows[0]?.max_rank) || 0) + 1;
+                        await conn.query(
+                            'INSERT INTO flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, execution_time, success, installed_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+                            [nextRank, version || null, description, 'SQL', sc.name, checksum, 'SchemaPilot', execTime, 1]
+                        );
+                        // Explicit commit to ensure history is saved even if autocommit was disabled by script
+                        await conn.query('COMMIT');
+                    } catch (e: any) {
+                        console.error('Failed to update history table:', e);
+                        historyErr = String(e?.message || e);
+                    }
+
                     await conn.end();
+                    
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: true, historyError: historyErr || undefined }));
+                    return;
                   } else if (cfg.type === 'PostgreSQL') {
                     const client = new PgClient({
                       host: cfg.host,
@@ -279,15 +332,38 @@ export default defineConfig(({ mode }) => {
                     await client.connect();
                     const schema = cfg.schema && cfg.schema.trim() ? cfg.schema : 'public';
                     await client.query(`SET search_path TO ${schema}`);
+                    
+                    // Run script
                     await client.query(sc.content);
+
+                    // Record history
+                    const execTime = Date.now() - startTime;
+                    let historyErr = '';
+                    try {
+                        const resRank = await client.query(`SELECT MAX(installed_rank) as max_rank FROM ${schema}.flyway_schema_history`);
+                        const nextRank = (Number(resRank.rows[0]?.max_rank) || 0) + 1;
+                        
+                        await client.query(
+                            `INSERT INTO ${schema}.flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, execution_time, success, installed_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+                            [nextRank, version || null, description, 'SQL', sc.name, checksum, 'SchemaPilot', execTime, true]
+                        );
+                        // Explicit commit
+                        await client.query('COMMIT');
+                    } catch (e: any) {
+                         console.error('Failed to update history table:', e);
+                         historyErr = String(e?.message || e);
+                    }
+
                     await client.end();
+
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: true, historyError: historyErr || undefined }));
+                    return;
                   } else {
                     res.statusCode = 400;
                     res.end(JSON.stringify({ ok: false, error: 'Unsupported DB type' }));
                     return;
                   }
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ ok: true }));
                 } catch (err: any) {
                   res.statusCode = 500;
                   res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Migration execution failed') }));

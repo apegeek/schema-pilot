@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ScriptFile, MigrationStatus } from '../types';
 import { Play, Save, Bot, RotateCcw, FileText, AlertTriangle, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
 // import { explainSqlScript } from '../services/geminiService';
@@ -85,6 +85,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
   const [promptText, setPromptText] = useState('');
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptStatus, setPromptStatus] = useState<'none' | 'success' | 'error'>('none');
+  const aiScrollRef = useRef<HTMLDivElement>(null);
   
   const normalizeMarkdown = (md: string) => {
     let s = md || '';
@@ -116,6 +117,12 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
     setIsDirty(false);
     setAiAnalysis(""); 
   }, [script.id]);
+
+  useEffect(() => {
+    if (activeTab === 'ai' && aiScrollRef.current && isAnalyzing) {
+      aiScrollRef.current.scrollTop = aiScrollRef.current.scrollHeight;
+    }
+  }, [aiAnalysis, activeTab, isAnalyzing]);
 
   useEffect(() => {
     const loadPrompt = async () => {
@@ -193,45 +200,84 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
 
   const extractSqlBlocks = (md: string): string[] => {
     const blocks: string[] = [];
-    const pushInner = (seg: string, re: RegExp) => {
-      const inner = re.exec(seg);
-      if (inner && inner[1]) {
-        const text = inner[1].trim();
-        if (text) blocks.push(text);
+    
+    // Helper to check if string looks like SQL
+    const looksSql = (s: string, strict: boolean = false) => {
+      const trimmed = s.trim();
+      if (!trimmed) return false;
+
+      // Check for SQL comments
+      if (/^--/.test(trimmed)) return true;
+      if (/^\/\*/.test(trimmed)) return true;
+
+      const keywords = [
+          'CREATE', 'ALTER', 'DROP', 'INSERT', 'UPDATE', 'DELETE', 
+          'SELECT', 'BEGIN', 'COMMIT', 'ROLLBACK', 'GRANT', 'REVOKE', 
+          'TRUNCATE', 'COMMENT', 'DO', 'DECLARE', 'CONSTRAINT', 
+          'FOREIGN KEY', 'PRIMARY KEY', 'REFERENCES', 'ADD CONSTRAINT',
+          'IF EXISTS', 'SET', 'VALUES', 'FROM', 'JOIN', 'WHERE'
+      ];
+      
+      if (strict) {
+          // In strict mode (no fences), must START with a keyword
+          const reStart = new RegExp(`^(${keywords.join('|')})\\b`, 'i');
+          return reStart.test(trimmed);
+      } else {
+          // In lenient mode (inside fences), just needs to contain keywords
+          const reKw = new RegExp(`\\b(${keywords.join('|')})\\b`, 'i');
+          if (reKw.test(trimmed)) return true;
+          if (/;\s*$/.test(trimmed)) return true;
       }
-    };
-    // ```sql ... ```
-    const reSqlFence = /```sql[\s\S]*?```/gi;
-    const reSqlInner = /```sql([\s\S]*?)```/i;
-    let m: RegExpExecArray | null;
-    while ((m = reSqlFence.exec(md)) !== null) pushInner(m[0], reSqlInner);
-
-    // ``` ... ``` (no language)
-    const reFence = /```[\s\S]*?```/g;
-    const reFenceInner = /```([\s\S]*?)```/;
-    while ((m = reFence.exec(md)) !== null) pushInner(m[0], reFenceInner);
-
-    // ~~~sql ... ~~~
-    const reTildeSqlFence = /~~~sql[\s\S]*?~~~/gi;
-    const reTildeSqlInner = /~~~sql([\s\S]*?)~~~/i;
-    while ((m = reTildeSqlFence.exec(md)) !== null) pushInner(m[0], reTildeSqlInner);
-
-    // ~~~ ... ~~~
-    const reTildeFence = /~~~[\s\S]*?~~~/g;
-    const reTildeFenceInner = /~~~([\s\S]*?)~~~/;
-    while ((m = reTildeFence.exec(md)) !== null) pushInner(m[0], reTildeFenceInner);
-
-    const looksSql = (s: string) => {
-      // Relaxed check: if it contains standard SQL keywords OR is just a block of code (fallback)
-      if (/\b(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|BEGIN|COMMIT|ROLLBACK|SELECT|SET|GRANT|REVOKE|TRUNCATE)\b/i.test(s)) return true;
-      // If it looks like a list of statements ending in ;
-      if (/;\s*$/.test(s.trim())) return true;
       return false;
     };
-    const filtered = blocks.filter(looksSql);
-    // If we found specific SQL-looking blocks, return them.
-    // Otherwise, if we have ANY blocks, return them (fallback for when AI just outputs code without clear keywords or in a different format).
-    return filtered.length ? filtered : blocks;
+
+    // 1. Fenced Code Blocks (Backticks)
+    // Capture the whole block including fences
+    const reBacktick = /```[\s\S]*?```/g;
+    let m;
+    while ((m = reBacktick.exec(md)) !== null) {
+      const block = m[0];
+      const lines = block.split('\n');
+      // If multi-line, strip first and last
+      if (lines.length >= 2) {
+          const content = lines.slice(1, -1).join('\n').trim();
+          if (content) blocks.push(content);
+      } else {
+          // Single line case: ```sql select 1``` -> select 1
+          const content = block.replace(/^```\w*\s*/, '').replace(/```$/, '').trim();
+          if (content) blocks.push(content);
+      }
+    }
+
+    // 2. Fenced Code Blocks (Tildes)
+    if (blocks.length === 0) {
+        const reTilde = /~~~[\s\S]*?~~~/g;
+        while ((m = reTilde.exec(md)) !== null) {
+            const block = m[0];
+            const lines = block.split('\n');
+            if (lines.length >= 2) {
+                const content = lines.slice(1, -1).join('\n').trim();
+                if (content) blocks.push(content);
+            }
+        }
+    }
+
+    // Filter fenced blocks
+    const fencedSql = blocks.filter(b => looksSql(b, false));
+    if (fencedSql.length > 0) return fencedSql;
+    if (blocks.length > 0) return blocks; // Return non-SQL looking fences if that's all we have
+
+    // 3. NO FENCES FOUND - Raw Text Fallback
+    // Split by double newlines to find paragraphs that look like SQL
+    const paragraphs = md.split(/\n\s*\n/);
+    const rawBlocks: string[] = [];
+    for (const p of paragraphs) {
+        if (looksSql(p, true)) { // Use strict mode
+            rawBlocks.push(p.trim());
+        }
+    }
+    
+    return rawBlocks;
   };
 
   const handleApplyAiFix = async () => {
@@ -256,14 +302,9 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
       return;
     }
     
-    // Use the largest block if multiple are found, as it's likely the full script
-    // Or if we have a "Fix SQL" section, the first one there is probably right.
-    // Given the current logic, blocks[0] is from the section if found.
-    // If falling back to global search, finding the "largest" block might be safer than the first one (which could be a small example).
-    let targetBlock = blocks[0];
-    if (labelIdx < 0 && blocks.length > 1) {
-       targetBlock = blocks.reduce((a, b) => a.length > b.length ? a : b);
-    }
+    // Join all blocks with double newlines to ensure we capture all generated SQL
+    // The user may expect the full content if multiple blocks are returned
+    const targetBlock = blocks.join('\n\n');
 
     // Apply change locally first
     setContent(targetBlock);
@@ -464,7 +505,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
           </>
         ) : (
           <div className="flex flex-col h-full bg-[#1e1e1e]">
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6" ref={aiScrollRef}>
               <div className="prose prose-invert max-w-none">
                 {isAnalyzing && !aiAnalysis && (
                   <div className="flex flex-col items-center justify-center h-48 space-y-4 text-purple-400">
@@ -497,33 +538,37 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
               </div>
             </div>
             {!isAnalyzing && script.status === MigrationStatus.PENDING && aiAnalysis && (
-              <div className="p-4 border-t border-gray-700 bg-[#1e1e1e] shrink-0">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleApplyAiFix}
-                    className="px-3 py-1.5 rounded text-xs font-bold bg-purple-600 text-white border border-purple-500 hover:bg-purple-500"
-                  >
-                    {t.editor.btn_apply_fix}
-                  </button>
+              <div className="p-3 border-t border-gray-800 bg-[#1e1e1e] shrink-0">
+                <div className="flex items-center gap-4">
+                  {!analysisDone && (
+                    <button
+                      onClick={handleApplyAiFix}
+                      className="px-3 py-1.5 rounded text-xs font-medium text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-colors"
+                    >
+                      {t.editor.btn_apply_fix}
+                    </button>
+                  )}
                   {analysisDone && (
                     <>
                       <button
                         onClick={handleApplyAiFix}
-                        className="px-3 py-1.5 rounded text-xs font-medium bg-green-700 text-white border border-green-600 hover:bg-green-600"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-colors"
                       >
+                        <Check className="w-3.5 h-3.5" />
                         {t.editor.btn_accept_fix}
                       </button>
                       <button
                         onClick={() => { setAiAnalysis(''); setApplyError(''); setAnalysisDone(false); }}
-                        className="px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-700"
+                        className="px-3 py-1.5 rounded text-xs font-medium text-gray-400 hover:text-gray-300 hover:bg-gray-800 transition-colors"
                       >
                         {t.editor.btn_reject_fix}
                       </button>
                     </>
                   )}
+                  <div className="h-4 w-px bg-gray-800 mx-2" />
                   <button
                     onClick={handleInsertAiComment}
-                    className="ml-2 px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-700"
+                    className="px-3 py-1.5 rounded text-xs font-medium text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors"
                   >
                     {t.editor.btn_insert_ai_hint}
                   </button>
