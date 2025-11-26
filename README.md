@@ -77,6 +77,11 @@ pnpm run preview
 - 可拖拽调整列宽，分隔条带有握柄图标与“拖拽以调整宽度”提示
 
 ## 功能截图
+
+- **登录**
+  
+  ![登录](./docs/login.png)
+
 - **首页**
   
   ![首页](./docs/home.png)
@@ -182,10 +187,10 @@ pnpm run preview
 <div align="center">
   <table>
     <tr>
-      <td align="center">
+      <td align="center" style="margin: 10px 0">
         <img alt="Alipay QR" src="./docs/donate-alipay.jpg" width="180" />
       </td>
-      <td align="center">
+      <td align="center" style="margin: 10px 0">
         <img alt="WeChat QR" src="./docs/donate-wechat.jpg" width="180" />
       </td>
     </tr>
