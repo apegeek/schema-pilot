@@ -310,16 +310,6 @@ const App: React.FC = () => {
                 <div className="flex flex-col h-full bg-[#1e1e1e]">
                   <div className="flex flex-col gap-2 p-3 border-b border-flyway-border bg-flyway-panel">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <label className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-transparent text-gray-400 hover:text-green-400 cursor-pointer">
-                        <input type="file" accept=".sql" className="hidden" onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const text = await file.text();
-                          const ok = await dbService.uploadScriptToPath(config.scriptsPath, file.name, text);
-                          if (ok) handleRefresh();
-                        }} />
-                        {t.editor.btn_upload}
-                      </label>
                       <button
                         onClick={handleOpenGen}
                         className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-purple-700 hover:bg-purple-600 text-white"
@@ -365,16 +355,6 @@ const App: React.FC = () => {
                   <div className="flex flex-col h-full bg-[#1e1e1e]">
                     <div className="flex flex-col gap-2 p-3 border-b border-flyway-border bg-flyway-panel">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <label className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-transparent text-gray-400 hover:text-green-400 cursor-pointer">
-                          <input type="file" accept=".sql" className="hidden" onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const text = await file.text();
-                            const ok = await dbService.uploadScriptToPath(config.scriptsPath, file.name, text);
-                            if (ok) handleRefresh();
-                          }} />
-                          {t.editor.btn_upload}
-                        </label>
                         <button
                           onClick={handleOpenGen}
                           className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-purple-700 hover:bg-purple-600 text-white"

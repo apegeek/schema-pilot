@@ -30,6 +30,10 @@ interface Translations {
     upload_tooltip: string;
     resize_tooltip: string;
     merge_tooltip: string;
+    delete_tooltip: string;
+    delete_confirm_title: string;
+    delete_confirm_desc: string;
+    delete_confirm_btn: string;
   };
   config: {
     title: string;
@@ -170,7 +174,11 @@ const translations: Record<Language, Translations> = {
       back_link: "Back to Scripts",
       upload_tooltip: "Upload SQL script",
       resize_tooltip: "Drag to resize",
-      merge_tooltip: "Merge pending scripts"
+      merge_tooltip: "Merge pending scripts",
+      delete_tooltip: "Delete script",
+      delete_confirm_title: "Confirm Deletion",
+      delete_confirm_desc: "This action will permanently remove the file.",
+      delete_confirm_btn: "Delete"
     },
     config: {
       title: "System Configuration",
@@ -309,7 +317,11 @@ const translations: Record<Language, Translations> = {
       back_link: "返回脚本列表",
       upload_tooltip: "上传 SQL 脚本",
       resize_tooltip: "拖拽以调整宽度",
-      merge_tooltip: "合并待执行脚本"
+      merge_tooltip: "合并待执行脚本",
+      delete_tooltip: "删除脚本",
+      delete_confirm_title: "确认删除",
+      delete_confirm_desc: "此操作将永久删除该文件。",
+      delete_confirm_btn: "删除"
     },
     config: {
       title: "系统配置",

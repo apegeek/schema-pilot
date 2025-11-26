@@ -46,6 +46,28 @@ export const dbService = {
     }
   }
   ,
+  deleteScriptFromPath: async (path: string, dir: string, name: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch('/api/scripts/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, dir, name })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, error: (data as any)?.error || `HTTP ${res.status}` };
+      }
+      const data = await res.json();
+      if ((data as any)?.ok) {
+        return { ok: true };
+      } else {
+        return { ok: false, error: (data as any)?.error || 'Unknown error' };
+      }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Network error' };
+    }
+  }
+  ,
   saveScriptContent: async (path: string, dir: string, name: string, content: string): Promise<{ ok: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/scripts/save', {

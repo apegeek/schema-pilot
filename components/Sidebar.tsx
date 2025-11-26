@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScriptFile, MigrationStatus, DbConfig, TreeItem } from '../types';
-import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, GitMerge } from 'lucide-react';
+import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, Trash2, X, AlertTriangle } from 'lucide-react';
 import { buildScriptTree } from '../utils/treeUtils';
 import { dbService } from '../services/dbService';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -35,7 +35,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [treeData, setTreeData] = useState<TreeItem[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [isMerging, setIsMerging] = useState(false);
+  const [toDelete, setToDelete] = useState<ScriptFile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
 
   useEffect(() => {
     const tree = buildScriptTree(scripts);
@@ -72,32 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
 
-  const mergePendingScripts = async () => {
-    if (isUploading || isMerging) return;
-    const pending = scripts.filter(s => s.status === MigrationStatus.PENDING);
-    if (pending.length === 0) return;
-    setIsMerging(true);
-    const cmp = (a: ScriptFile, b: ScriptFile) => {
-      const pa = (a.version || '').split('.').map(n => Number(n)).filter(n => !Number.isNaN(n));
-      const pb = (b.version || '').split('.').map(n => Number(n)).filter(n => !Number.isNaN(n));
-      if (pa.length && pb.length) {
-        const len = Math.max(pa.length, pb.length);
-        for (let i = 0; i < len; i++) {
-          const va = pa[i] ?? 0;
-          const vb = pb[i] ?? 0;
-          if (va !== vb) return va - vb;
-        }
-        return 0;
-      }
-      return a.name.localeCompare(b.name, 'en', { numeric: true });
-    };
-    const ordered = [...pending].sort(cmp);
-    const merged = ordered.map(s => s.content.trim()).filter(Boolean).join('\n\n');
-    const fileName = `V${Date.now()}__merged.sql`;
-    const ok = await dbService.uploadScriptToPath(config.scriptsPath, fileName, merged);
-    setIsMerging(false);
-    if (ok) onRefresh();
-  };
+  
 
   const getStatusIcon = (status: MigrationStatus) => {
     switch (status) {
@@ -150,14 +127,27 @@ const Sidebar: React.FC<SidebarProps> = ({
             style={{ paddingLeft: `${depth * 12 + 10}px` }}
           >
             <div className="shrink-0" title={script.status === MigrationStatus.SUCCESS ? t.history.state_success : (script.status === MigrationStatus.FAILED ? t.history.state_fail : t.editor.status_pending)}>{getStatusIcon(script.status)}</div>
-            <div className="overflow-hidden w-full">
-               <div className="truncate text-xs font-mono">{script.name}</div>
-               <div className="flex justify-between items-center mt-0.5">
-                  <span className="text-[9px] opacity-50 uppercase tracking-wider">{script.version}</span>
-                  <span className={`text-[9px] ml-2 font-semibold ${script.status === MigrationStatus.SUCCESS ? 'text-green-500' : (script.status === MigrationStatus.FAILED ? 'text-red-500' : 'text-amber-500')}`}>
-                    {script.status === MigrationStatus.SUCCESS ? t.editor.status_applied : (script.status === MigrationStatus.FAILED ? t.history.state_fail : t.editor.status_pending)}
-                  </span>
-               </div>
+            <div className="w-full flex items-center gap-2 min-w-0">
+              <div className="flex-1 min-w-0">
+                <span className="truncate text-xs font-mono">{script.name}</span>
+                {script.version && (
+                  <span className="ml-2 text-[10px] opacity-50 uppercase tracking-wider">{script.version}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-[10px] font-semibold ${script.status === MigrationStatus.SUCCESS ? 'text-green-500' : (script.status === MigrationStatus.FAILED ? 'text-red-500' : 'text-amber-500')}`}>
+                  {script.status === MigrationStatus.SUCCESS ? t.editor.status_applied : (script.status === MigrationStatus.FAILED ? t.history.state_fail : t.editor.status_pending)}
+                </span>
+                {script.status === MigrationStatus.PENDING && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setToDelete(script); }}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-900/20 text-gray-400 hover:text-red-400 transition-colors"
+                    title={t.sidebar.delete_tooltip}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -166,6 +156,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
+    <>
     <div className="w-full bg-flyway-panel border-r border-flyway-border flex flex-col h-full text-sm shrink-0 shadow-xl z-20 relative">
       
       {/* Header */}
@@ -203,14 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               }} />
               <Upload className={`w-4 h-4 ${isUploading ? 'animate-pulse' : ''}`} />
             </label>
-            <button
-              onClick={mergePendingScripts}
-              className={`p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-yellow-300 ${isMerging ? 'animate-pulse' : ''}`}
-              title={t.sidebar.merge_tooltip}
-              disabled={isMerging}
-            >
-              <GitMerge className="w-4 h-4" />
-            </button>
+            
             <button 
               onClick={onOpenConfig}
               className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
@@ -282,6 +266,47 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
     </div>
+    {toDelete && (
+      <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-30">
+        <div className="bg-[#1e1e1e] w-[520px] border border-flyway-border rounded-lg shadow-xl">
+          <div className="p-3 border-b border-flyway-border flex items-center justify-between">
+            <div className="flex items-center gap-2 text-red-300 font-semibold">
+              <AlertTriangle className="w-4 h-4" />
+              {t.sidebar.delete_confirm_title}
+            </div>
+            <button onClick={() => setToDelete(null)} className="text-gray-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4 space-y-2">
+            <div className="text-xs text-gray-400">{t.sidebar.delete_confirm_desc}</div>
+            <div className="bg-black/20 border border-flyway-border rounded p-2 text-xs text-gray-300 font-mono">
+              {toDelete.name}
+            </div>
+          </div>
+          <div className="p-3 border-t border-flyway-border flex justify-end gap-2">
+            <button onClick={() => setToDelete(null)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.config.btn_cancel}</button>
+            <button
+              onClick={async () => {
+                if (!toDelete) return;
+                setIsDeleting(true);
+                const res = await dbService.deleteScriptFromPath(config.scriptsPath, toDelete.path || '', toDelete.name);
+                setIsDeleting(false);
+                if (res.ok) {
+                  setToDelete(null);
+                  onRefresh();
+                }
+              }}
+              disabled={isDeleting}
+              className={`px-3 py-1.5 text-xs rounded ${isDeleting ? 'bg-red-900 text-gray-300' : 'bg-red-700 hover:bg-red-600 text-white'} border border-red-600`}
+            >
+              {t.sidebar.delete_confirm_btn}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

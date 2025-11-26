@@ -22,7 +22,7 @@ const DEFAULT_PORTS: Record<DbType, string> = {
 const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClose }) => {
   const { t } = useLanguage();
   const [formData, setFormData] = useState<DbConfig>(config);
-  const [activeSection, setActiveSection] = useState<'db' | 'redis' | 'ai' | 'prompt' | 'security'>('db');
+  const [activeSection, setActiveSection] = useState<'db' | 'redis' | 'ai' | 'security'>('db');
   
   // Connection Test State
   const [isTesting, setIsTesting] = useState(false);
@@ -34,9 +34,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
   const [isAiTesting, setIsAiTesting] = useState(false);
   const [aiTestStatus, setAiTestStatus] = useState<'none' | 'success' | 'error'>('none');
   const [aiTestMessage, setAiTestMessage] = useState('');
-  const [promptText, setPromptText] = useState('');
-  const [promptLoading, setPromptLoading] = useState(false);
-  const [promptStatus, setPromptStatus] = useState<'none' | 'success' | 'error'>('none');
+  
 
   // Sync internal state with props when modal opens
   useEffect(() => {
@@ -49,16 +47,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
     }
   }, [isOpen, config]);
 
-  useEffect(() => {
-    const loadPrompt = async () => {
-      setPromptLoading(true);
-      const text = await dbService.getAnalyzePrompt('cache');
-      setPromptText(text || '');
-      setPromptLoading(false);
-      setPromptStatus('none');
-    };
-    if (isOpen && activeSection === 'prompt') loadPrompt();
-  }, [isOpen, activeSection]);
+  
 
   if (!isOpen) return null;
 
@@ -246,13 +235,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
             <BrainCircuit className="w-3.5 h-3.5" />
             {t.config.tab_ai}
           </button>
-          <button 
-            onClick={() => setActiveSection('prompt')}
-            className={`flex-1 py-3 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeSection === 'prompt' ? 'border-purple-500 text-purple-400 bg-white/5' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            {t.config.tab_prompt}
-          </button>
+          
            <button 
              onClick={() => setActiveSection('security')}
              className={`flex-1 py-3 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeSection === 'security' ? 'border-purple-500 text-purple-400 bg-white/5' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
@@ -322,7 +305,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
 
               <div className="grid grid-cols-12 gap-4">
                 <div className="col-span-4 space-y-1">
-                  <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.db_name}</label>
+                  <label className="text-xs font-semibold text-gray-400 uppercase h-4 flex items-center gap-2">{t.config.db_name}</label>
                   <input
                     type="text"
                     name="database"
@@ -332,7 +315,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
                   />
                 </div>
                 <div className="col-span-4 space-y-1">
-                  <label className="text-xs font-semibold text-gray-400 uppercase">{t.config.db_user}</label>
+                  <label className="text-xs font-semibold text-gray-400 uppercase h-4 flex items-center gap-2">{t.config.db_user}</label>
                   <input
                     type="text"
                     name="user"
@@ -342,7 +325,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
                   />
                 </div>
                 <div className="col-span-4 space-y-1">
-                  <label className="text-xs font-semibold text-gray-400 uppercase flex items-center gap-2">
+                  <label className="text-xs font-semibold text-gray-400 uppercase flex items-center gap-2 h-4">
                     <Key className="w-3 h-3" /> {t.config.db_pass}
                   </label>
                   <input
@@ -501,47 +484,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, config, onSave, onClo
             </div>
           )}
 
-          {activeSection === 'prompt' && (
-            <div className="space-y-4">
-              <div className="text-xs text-gray-400">{t.config.prompt_desc}</div>
-              <textarea
-                value={promptText}
-                onChange={(e) => { setPromptText(e.target.value); setPromptStatus('none'); }}
-                className="w-full h-[360px] bg-[#1e1e1e] border border-flyway-border rounded p-2 text-xs text-gray-200 font-mono"
-              />
-              <div className="flex items-center justify-between">
-                <div className="text-xs">
-                  {promptLoading && <span className="text-blue-400">Loading...</span>}
-                  {promptStatus === 'success' && <span className="text-green-400">{t.config.prompt_save_success}</span>}
-                  {promptStatus === 'error' && <span className="text-red-400">{t.config.prompt_save_fail}</span>}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setPromptLoading(true);
-                      const text = await dbService.getAnalyzePrompt('default');
-                      setPromptText(text || '');
-                      setPromptLoading(false);
-                    }}
-                    className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700"
-                  >
-                    {t.config.prompt_load_default}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const ok = await dbService.saveAnalyzePrompt(promptText, formData.redis);
-                      setPromptStatus(ok ? 'success' : 'error');
-                    }}
-                    className="px-3 py-1.5 text-xs rounded bg-purple-700 text-white border border-purple-600 hover:bg-purple-600"
-                  >
-                    {t.config.prompt_save}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          
 
           {activeSection === 'ai' && (
             <div className="space-y-6 py-2">

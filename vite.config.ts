@@ -182,6 +182,44 @@ export default defineConfig(({ mode }) => {
                 return;
               }
 
+              if (req.url.startsWith('/api/scripts/delete')) {
+                try {
+                  const body = await readJson(req);
+                  const targetDir = String(body.path || '');
+                  const relDir = String(body.dir || '');
+                  const fileName = String(body.name || '');
+                  if (!targetDir || !fileName) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Missing path or name' }));
+                    return;
+                  }
+                  const base = path.isAbsolute(targetDir)
+                    ? targetDir
+                    : path.resolve(projectRoot, targetDir);
+                  const safeName = path.basename(fileName);
+                  if (!safeName.toLowerCase().endsWith('.sql')) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Only .sql files allowed' }));
+                    return;
+                  }
+                  const safeDir = relDir.replace(/\\/g, '/');
+                  const outDir = safeDir ? path.join(base, safeDir) : base;
+                  const outPath = path.join(outDir, safeName);
+                  if (!fs.existsSync(outPath)) {
+                    res.statusCode = 404;
+                    res.end(JSON.stringify({ ok: false, error: 'File not found' }));
+                    return;
+                  }
+                  fs.unlinkSync(outPath);
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ ok: true }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Delete failed') }));
+                }
+                return;
+              }
+
               if (req.url.startsWith('/api/scripts')) {
                 try {
                   const u = new URL(req.url, 'http://localhost');

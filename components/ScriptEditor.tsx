@@ -385,16 +385,6 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
               {t.editor.btn_save}
             </button>
           )}
-          <label className={`px-3 py-1.5 rounded text-xs font-medium transition-colors bg-transparent ${isAnalyzing ? 'text-gray-500 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-green-400 cursor-pointer'}`}>
-            <input type="file" accept=".sql" className="hidden" disabled={isAnalyzing} onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const text = await file.text();
-              const ok = await dbService.uploadScriptToPath(scriptsPath, file.name, text);
-              if (ok && onUploadComplete) onUploadComplete();
-            }} />
-            {t.editor.btn_upload}
-          </label>
           <button
             onClick={handleOpenGen}
             disabled={isAnalyzing}
@@ -614,11 +604,37 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
           <div className="bg-[#1e1e1e] w-[750px] h-[600px] border border-flyway-border rounded-lg shadow-xl">
             <div className="p-4 border-b border-flyway-border text-gray-200 font-semibold">{t.editor.prompt_title}</div>
             <div className="p-4 space-y-3">
-              <textarea
-                value={promptText}
-                onChange={(e) => { setPromptText(e.target.value); setPromptStatus('none'); }}
-                className="w-full h-[460px] bg-[#1e1e1e] border border-flyway-border rounded p-2 text-xs text-gray-200 font-mono"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <textarea
+                  value={promptText}
+                  onChange={(e) => { setPromptText(e.target.value); setPromptStatus('none'); }}
+                  className="w-full h-[460px] bg-[#1e1e1e] border border-flyway-border rounded p-2 text-xs text-gray-200 font-mono"
+                />
+                <div className="h-[460px] bg-[#1e1e1e] border border-flyway-border rounded p-2 overflow-y-auto">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-blue-400 mt-2 mb-3" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="text-xl font-bold text-blue-300 mt-2 mb-2" {...props} />,
+                      h3: ({node, ...props}) => <h3 className="text-lg font-semibold text-blue-200 mt-2 mb-1.5" {...props} />,
+                      p: ({node, ...props}) => <p className="text-sm text-gray-200 leading-6" {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-purple-600 pl-3 text-purple-300 my-2" {...props} />,
+                      ul: ({node, ...props}) => <ul className="list-disc list-outside ml-5 space-y-1 text-sm text-gray-200" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-5 space-y-1 text-sm text-gray-200" {...props} />,
+                      li: ({node, ...props}) => <li className="text-sm" {...props} />,
+                      code: CodeBlock,
+                      table: ({node, ...props}) => <div className="overflow-x-auto my-2 rounded border border-gray-700"><table className="min-w-full divide-y divide-gray-700" {...props} /></div>,
+                      thead: ({node, ...props}) => <thead className="bg-gray-800" {...props} />, 
+                      tbody: ({node, ...props}) => <tbody className="bg-gray-900/30 divide-y divide-gray-700" {...props} />, 
+                      tr: ({node, ...props}) => <tr className="hover:bg-gray-800/50" {...props} />, 
+                      th: ({node, ...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-r border-gray-700 last:border-r-0" {...props} />, 
+                      td: ({node, ...props}) => <td className="px-3 py-2 text-sm text-gray-300 border-r border-gray-700 last:border-r-0" {...props} />,
+                    }}
+                  >
+                    {normalizeMarkdown(promptText)}
+                  </ReactMarkdown>
+                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <div className="text-xs">
                   {promptLoading && <span className="text-blue-400">Loading...</span>}
