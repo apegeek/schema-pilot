@@ -174,6 +174,29 @@ pnpm run preview
 - **团队协作**：多人编辑与变更 CR 流程
 - **生产后端**：将开发路由替换为独立服务，提供鉴权与审计
 
+## 第三方依赖与鸣谢
+- 核心理念与规范
+  - Flyway — 数据库迁移与 `flyway_schema_history` 约定，推动脚本版本化与可追溯（https://flywaydb.org/）。
+- 数据库访问与缓存
+  - `mysql2` — Node.js MySQL/MariaDB 客户端（https://github.com/sidorares/node-mysql2）。
+  - `pg` — Node.js PostgreSQL 客户端（https://github.com/brianc/node-postgres）。
+  - `redis` — Node.js Redis 客户端（https://github.com/redis/node-redis）。
+- 前端与构建
+  - `React`、`React DOM` — 前端渲染框架（https://react.dev/）。
+  - `Vite` — 开发与构建工具（https://vitejs.dev/）。
+  - `TypeScript` — 类型系统与开发体验（https://www.typescriptlang.org/）。
+- 编辑与渲染
+  - `@uiw/react-codemirror`、`@codemirror/lang-sql`、`@codemirror/theme-one-dark` — SQL 编辑器与主题。
+  - `react-markdown`、`remark-gfm` — Markdown 渲染与 GFM 支持。
+  - `react-syntax-highlighter` — 代码高亮渲染。
+  - `lucide-react` — Icon 集合与 UI 视觉辅助。
+- AI 能力（可选）
+  - `@google/genai` 与 Google Generative Language API — 生成式 AI；DeepSeek API — 推理与流式输出。
+- 鸣谢
+  - 衷心感谢以上开源项目及维护者的长期投入与贡献；本项目的设计与实现高度受益于开源生态的成熟能力与最佳实践。
+  - 以上名称与商标分别归其各自的权利方所有；引用仅用于技术集成与致谢，不构成赞助或背书。
+  - 若你正在维护相关项目或有建议与改进，欢迎与我们交流；我们将持续保持兼容、尊重许可证并积极反馈社区。
+
 ## License
 - 本项目采用“SchemaPilot Studio 社区许可协议（Community License）”。
 - 允许学习与研究、个人与组织内部使用（含生产部署）；不允许售卖或有偿分发。
