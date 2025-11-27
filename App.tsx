@@ -443,21 +443,35 @@ const App: React.FC = () => {
       {/* Floating toggle button (top overlay), does not interfere with drag */}
       <button
         onClick={() => setUserCollapsed(!userCollapsed)}
-        className="absolute p-2 rounded-full bg-[#1e1e1e]/70 text-orange-300 hover:text-orange-200 hover:bg-[#1e1e1e]/60 transition-all duration-200 pulse-glow-orange"
+        className="absolute p-0 bg-transparent outline-none text-orange-300 hover:text-orange-200 transition-transform duration-200 glow-toggle"
         title={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
         style={{ left: (isSidebarCollapsed ? 8 : sidebarWidth - 10), top: 120, zIndex: 60, transition: 'left 240ms ease, transform 160ms ease' }}
         onMouseEnter={(e) => { (e.currentTarget.style.transform = 'scale(1.06)'); }}
         onMouseLeave={(e) => { (e.currentTarget.style.transform = 'scale(1)'); }}
         aria-label={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
       >
-        {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+        {isSidebarCollapsed ? <ChevronRight className="w-5 h-5 glow-icon-orange" /> : <ChevronsLeft className="w-5 h-5 glow-icon-orange" />}
       </button>
       <style>{`
-        @keyframes pulseGlowOrange {
-          0%, 100% { box-shadow: 0 0 0px 0 rgba(0,0,0,0), 0 0 12px 4px rgba(255, 158, 0, 0.25), 0 0 40px 12px rgba(255, 158, 0, 0.12); }
-          50% { box-shadow: 0 0 0px 0 rgba(0,0,0,0), 0 0 18px 6px rgba(255, 158, 0, 0.40), 0 0 60px 18px rgba(255, 158, 0, 0.18); }
+        @keyframes iconGlowOrange {
+          0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 158, 0, 0.35)) drop-shadow(0 0 12px rgba(255, 158, 0, 0.18)); }
+          50% { filter: drop-shadow(0 0 7px rgba(255, 158, 0, 0.55)) drop-shadow(0 0 18px rgba(255, 158, 0, 0.28)); }
         }
-        .pulse-glow-orange { animation: pulseGlowOrange 1.8s ease-in-out infinite; }
+        .glow-icon-orange { animation: iconGlowOrange 1.8s ease-in-out infinite; }
+        @keyframes haloPulseOrange {
+          0%, 100% { opacity: 0.45; transform: scale(1); }
+          50% { opacity: 0.95; transform: scale(1.08); }
+        }
+        .glow-toggle::after {
+          content: '';
+          position: absolute;
+          left: -18px; top: -18px; right: -18px; bottom: -18px;
+          border-radius: 9999px;
+          background: radial-gradient(closest-side, rgba(255, 158, 0, 0.28), rgba(255, 158, 0, 0));
+          filter: blur(2px);
+          pointer-events: none;
+          animation: haloPulseOrange 1.8s ease-in-out infinite;
+        }
       `}</style>
       <div className="flex-1 flex flex-col min-w-0" ref={columnRef}>
         <div className="flex flex-1 min-w-0 overflow-hidden" ref={mainRef}>

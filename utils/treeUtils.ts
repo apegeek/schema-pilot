@@ -68,10 +68,36 @@ export const buildScriptTree = (scripts: ScriptFile[]): TreeItem[] => {
     });
   });
 
-  // Sort: Folders first, then Files. Alphabetical.
+  // Sort: Folders first (alphabetical), Files by semantic version ascending then name
+  const parseVersion = (v?: string): number[] => {
+    const s = String(v || '').trim();
+    if (!s) return [];
+    return s.split('.').map(x => {
+      const n = parseInt(x, 10);
+      return isNaN(n) ? 0 : n;
+    });
+  };
+  const cmpVersion = (a?: string, b?: string): number => {
+    const A = parseVersion(a);
+    const B = parseVersion(b);
+    const len = Math.max(A.length, B.length);
+    for (let i = 0; i < len; i++) {
+      const ai = A[i] || 0;
+      const bi = B[i] || 0;
+      if (ai !== bi) return ai - bi;
+    }
+    return 0;
+  };
   const sortTree = (items: TreeItem[]) => {
     items.sort((a, b) => {
-      if (a.type === b.type) return a.name.localeCompare(b.name);
+      if (a.type === 'folder' && b.type === 'folder') return a.name.localeCompare(b.name);
+      if (a.type === 'file' && b.type === 'file') {
+        const va = a.data?.version || '';
+        const vb = b.data?.version || '';
+        const byVer = cmpVersion(va, vb);
+        if (byVer !== 0) return byVer;
+        return a.name.localeCompare(b.name);
+      }
       return a.type === 'folder' ? -1 : 1;
     });
     items.forEach(item => {
