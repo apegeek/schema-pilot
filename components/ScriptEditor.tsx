@@ -549,6 +549,12 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
                   {t.editor.readonly_alert}
                 </div>
               )}
+              {script.status === MigrationStatus.PENDING && (
+                <div className="flex items-center gap-2 px-2 py-0.5 bg-gray-800/90 backdrop-blur rounded border border-gray-700 text-[11px] text-gray-400 pointer-events-none">
+                  <div className="w-2 h-2 rounded-full bg-orange-400/80 animate-pulse" />
+                  {t.editor.hint_merge_pending}
+                </div>
+              )}
               <button
                 onClick={() => onToggleFullScreen && onToggleFullScreen()}
                 disabled={isAnalyzing}

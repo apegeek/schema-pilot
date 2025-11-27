@@ -128,6 +128,7 @@ interface Translations {
     ai_reanalyze: string;
     no_selection_title: string;
     no_selection_desc: string;
+    hint_merge_pending: string;
   };
   history: {
     title: string;
@@ -241,7 +242,7 @@ const translations: Record<Language, Translations> = {
     },
     editor: {
       status_applied: "Applied",
-      status_pending: "Pending",
+      status_pending: "Merge Pending",
       btn_save: "Save",
       btn_migrate: "Migrate",
       btn_migrating: "Migrating...",
@@ -278,6 +279,7 @@ const translations: Record<Language, Translations> = {
       ai_reanalyze: "Run Analysis",
       no_selection_title: "No script selected",
       no_selection_desc: "Select a script from the left, or use \"AI Generate SQL\" above",
+      hint_merge_pending: "Merge-pending scripts are editable; save changes directly.",
     },
     history: {
       title: "Flyway Schema History",
@@ -389,7 +391,7 @@ const translations: Record<Language, Translations> = {
     },
     editor: {
       status_applied: "已应用",
-      status_pending: "待执行",
+      status_pending: "待合并",
       btn_save: "保存",
       btn_migrate: "执行迁移",
       btn_migrating: "迁移中...",
@@ -426,6 +428,7 @@ const translations: Record<Language, Translations> = {
       ai_reanalyze: "AI分析",
       no_selection_title: "尚未选择脚本",
       no_selection_desc: "请在左侧选择脚本，或点击上方“AI 生成 SQL”创建",
+      hint_merge_pending: "待合并脚本支持直接编辑并保存。",
     },
     history: {
       title: "Flyway 版本历史",
