@@ -255,7 +255,7 @@ export default defineConfig(({ mode }) => {
                 }
               }
 
-              if (req.url.startsWith('/api/history')) {
+              if (req.url === '/api/history' && req.method === 'POST') {
                 try {
                   const cfg = await readJson(req) as DbConfig;
                   let rows: any[] = [];
@@ -325,7 +325,7 @@ export default defineConfig(({ mode }) => {
                 return;
               }
 
-              if (req.url.startsWith('/api/history/cache')) {
+              if (req.url.startsWith('/api/history/cache') && req.method === 'GET') {
                 try {
                   const u = new URL(req.url, 'http://localhost');
                   const host = u.searchParams.get('host') || '127.0.0.1';

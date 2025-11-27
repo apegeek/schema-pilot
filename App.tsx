@@ -345,6 +345,21 @@ const App: React.FC = () => {
   const handleMigrate = async (id: string) => {
     const script = scripts.find(s => s.id === id);
     if (!script) return;
+    const statements = String(script.content || '').split(/;[\r\n]*/).map(s => s.trim()).filter(Boolean);
+    const looksDanger = statements.some(st => {
+      const s = st.toLowerCase();
+      if (/\bdrop\s+(table|index|view|schema)\b/i.test(st)) return true;
+      if (/\btruncate\b/i.test(st)) return true;
+      if (/\balter\s+table[\s\S]*\bdrop\b/i.test(st)) return true;
+      if (/\bdelete\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
+      if (/\bupdate\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
+      if (/\block\s+table\b/i.test(st)) return true;
+      return false;
+    });
+    if (looksDanger) {
+      const ok = window.confirm('检测到可能存在破坏性操作（DROP/TRUNCATE/无 WHERE 的 UPDATE/DELETE 等）。确认继续执行迁移吗？');
+      if (!ok) { addLog('WARN', '执行已取消：检测到高风险 SQL。'); return; }
+    }
 
     setMigratingId(id);
     addLog('INFO', `Connecting to ${config.host}...`);
