@@ -41,6 +41,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showDbAddr, setShowDbAddr] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [renameError, setRenameError] = useState('');
   
 
   useEffect(() => {
@@ -118,6 +121,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       } else {
         const script = node.data!;
         const isSelected = selectedScriptId === script.id;
+        const isEditing = editingId === script.id;
         return (
           <div
             key={node.id}
@@ -129,11 +133,48 @@ const Sidebar: React.FC<SidebarProps> = ({
                 : 'border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'}
             `}
             style={{ paddingLeft: `${depth * 12 + 10}px` }}
+            onDoubleClick={() => {
+              if (script.status === MigrationStatus.PENDING) {
+                setEditingId(script.id);
+                setEditingName(script.name);
+                setRenameError('');
+              }
+            }}
           >
             <div className="shrink-0" title={script.status === MigrationStatus.SUCCESS ? t.history.state_success : (script.status === MigrationStatus.FAILED ? t.history.state_fail : t.editor.status_pending)}>{getStatusIcon(script.status)}</div>
             <div className="w-full flex items-center gap-2 min-w-0">
               <div className="flex-1 min-w-0">
-                <span className="truncate text-xs font-mono">{script.name}</span>
+                {!isEditing && (
+                  <span className="truncate text-xs font-mono">{script.name}</span>
+                )}
+                {isEditing && (
+                  <input
+                    value={editingName}
+                    onChange={(e) => { setEditingName(e.target.value); setRenameError(''); }}
+                    onBlur={async () => {
+                      const finalName = editingName.trim();
+                      if (!/^V[^_]+__[^\s]+\.sql$/i.test(finalName)) { setRenameError('文件名不合法: 需匹配 V<版本>__<描述>.sql'); return; }
+                      if (finalName === script.name) { setEditingId(null); setEditingName(''); setRenameError(''); return; }
+                      const res = await dbService.renameScriptInPath(config.scriptsPath, script.path || '', script.name, finalName);
+                      if (res.ok) { setEditingId(null); setEditingName(''); onRefresh(); } else { setRenameError(String(res.error || '重命名失败')); }
+                    }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        const finalName = editingName.trim();
+                        if (!/^V[^_]+__[^\s]+\.sql$/i.test(finalName)) { setRenameError('文件名不合法: 需匹配 V<版本>__<描述>.sql'); return; }
+                        if (finalName === script.name) { setEditingId(null); setEditingName(''); setRenameError(''); return; }
+                        const res = await dbService.renameScriptInPath(config.scriptsPath, script.path || '', script.name, finalName);
+                        if (res.ok) { setEditingId(null); setEditingName(''); onRefresh(); } else { setRenameError(String(res.error || '重命名失败')); }
+                      }
+                      if (e.key === 'Escape') { setEditingId(null); setEditingName(''); setRenameError(''); }
+                    }}
+                    className="w-full bg-black/20 border border-flyway-border rounded px-1 py-0.5 text-[11px] text-gray-300 font-mono"
+                    autoFocus
+                  />
+                )}
+                {renameError && isEditing && (
+                  <div className="text-[10px] text-red-400 mt-0.5">{renameError}</div>
+                )}
                 {script.version && (
                   <span className="ml-2 text-[10px] opacity-50 uppercase tracking-wider">{script.version}</span>
                 )}

@@ -116,10 +116,10 @@ pnpm run preview
 ## System Design: Redis Cache & Keyspace
 - Purpose: store AI model config (provider/model/apiKey) for unified reads without re-entering
 - Keys (latest flat structure, without namespace separators):
-  - `schema-pilotaiconfig`: AI model config object (`provider`, `model`, `apiKey`)
-  - `schema-pilotdbconfig`: global DB config
-  - `schema-pilotsecuritypassword`: app login password
-  - `schema-pilotdbhistory`: latest `flyway_schema_history` snapshot for cache reads
+  - `schema-pilot:ai:config`: AI model config object (`provider`, `model`, `apiKey`)
+  - `schema-pilot:db:config`: global DB config
+  - `schema-pilot:security:password`: app login password
+  - `schema-pilot:db:history`: latest `flyway_schema_history` snapshot for cache reads
 - Routes:
   - `POST /api/ai/config/save`: save AI config to Redis (when enabled)
   - `GET /api/ai/config/get`: read AI config; returns `null` if not set

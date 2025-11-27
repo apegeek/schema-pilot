@@ -151,6 +151,57 @@ export default defineConfig(({ mode }) => {
                 return;
               }
 
+              if (req.url.startsWith('/api/scripts/rename')) {
+                try {
+                  const body = await readJson(req);
+                  const targetDir = String(body.path || '');
+                  const relDir = String(body.dir || '');
+                  const oldName = String(body.oldName || '');
+                  const newName = String(body.newName || '');
+                  if (!targetDir || !oldName || !newName) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Missing path or names' }));
+                    return;
+                  }
+                  const base = path.isAbsolute(targetDir)
+                    ? targetDir
+                    : path.resolve(projectRoot, targetDir);
+                  const safeDir = relDir.replace(/\\/g, '/');
+                  const outDir = safeDir ? path.join(base, safeDir) : base;
+                  const safeOld = path.basename(oldName);
+                  const safeNew = path.basename(newName);
+                  if (!safeOld.toLowerCase().endsWith('.sql') || !safeNew.toLowerCase().endsWith('.sql')) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Only .sql files allowed' }));
+                    return;
+                  }
+                  const oldPath = path.join(outDir, safeOld);
+                  const newPath = path.join(outDir, safeNew);
+                  if (!fs.existsSync(oldPath)) {
+                    res.statusCode = 404;
+                    res.end(JSON.stringify({ ok: false, error: 'File not found' }));
+                    return;
+                  }
+                  if (safeOld === safeNew) {
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: true }));
+                    return;
+                  }
+                  if (fs.existsSync(newPath)) {
+                    res.statusCode = 409;
+                    res.end(JSON.stringify({ ok: false, error: 'Target exists' }));
+                    return;
+                  }
+                  fs.renameSync(oldPath, newPath);
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ ok: true }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Rename failed') }));
+                }
+                return;
+              }
+
               if (req.url.startsWith('/api/scripts/save')) {
                 try {
                   const body = await readJson(req);
