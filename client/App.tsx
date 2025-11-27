@@ -10,6 +10,7 @@ import LogPanel from './components/LogPanel';
 import ConfigModal from './components/ConfigModal';
 import HistoryTable from './components/HistoryTable';
 import LoginScreen from './components/LoginScreen';
+import ConfirmDialog from './components/ConfirmDialog';
 import { ScriptFile, DbConfig, LogEntry, MigrationStatus, HistoryRecord } from './types';
 import { PanelBottom, GripVertical, GripHorizontal, Save, X, ChevronRight, ChevronsLeft } from 'lucide-react';
 import Resizer from './components/Resizer';
@@ -57,6 +58,8 @@ const App: React.FC = () => {
   const [nameError, setNameError] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [pendingGenPayload, setPendingGenPayload] = useState<{ defaultName: string; payload: string } | null>(null);
+  const [dangerConfirmOpen, setDangerConfirmOpen] = useState(false);
+  const [pendingDangerId, setPendingDangerId] = useState<string | null>(null);
 
   useEffect(() => {
     const auth = cacheService.getAuthToken();
@@ -342,25 +345,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMigrate = async (id: string) => {
+  const runMigration = async (id: string) => {
     const script = scripts.find(s => s.id === id);
     if (!script) return;
-    const statements = String(script.content || '').split(/;[\r\n]*/).map(s => s.trim()).filter(Boolean);
-    const looksDanger = statements.some(st => {
-      const s = st.toLowerCase();
-      if (/\bdrop\s+(table|index|view|schema)\b/i.test(st)) return true;
-      if (/\btruncate\b/i.test(st)) return true;
-      if (/\balter\s+table[\s\S]*\bdrop\b/i.test(st)) return true;
-      if (/\bdelete\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
-      if (/\bupdate\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
-      if (/\block\s+table\b/i.test(st)) return true;
-      return false;
-    });
-    if (looksDanger) {
-      const ok = window.confirm('检测到可能存在破坏性操作（DROP/TRUNCATE/无 WHERE 的 UPDATE/DELETE 等）。确认继续执行迁移吗？');
-      if (!ok) { addLog('WARN', '执行已取消：检测到高风险 SQL。'); return; }
-    }
-
     setMigratingId(id);
     addLog('INFO', `Connecting to ${config.host}...`);
     addLog('INFO', `Executing migration: ${script.name}`);
@@ -383,6 +370,24 @@ const App: React.FC = () => {
     } finally {
       setMigratingId(null);
     }
+  };
+
+  const handleMigrate = async (id: string) => {
+    const script = scripts.find(s => s.id === id);
+    if (!script) return;
+    const statements = String(script.content || '').split(/;[\r\n]*/).map(s => s.trim()).filter(Boolean);
+    const looksDanger = statements.some(st => {
+      const s = st.toLowerCase();
+      if (/\bdrop\s+(table|index|view|schema)\b/i.test(st)) return true;
+      if (/\btruncate\b/i.test(st)) return true;
+      if (/\balter\s+table[\s\S]*\bdrop\b/i.test(st)) return true;
+      if (/\bdelete\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
+      if (/\bupdate\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
+      if (/\block\s+table\b/i.test(st)) return true;
+      return false;
+    });
+    if (looksDanger) { setPendingDangerId(id); setDangerConfirmOpen(true); return; }
+    await runMigration(id);
   };
 
   if (!isAuthenticated) {
@@ -730,6 +735,15 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={dangerConfirmOpen}
+        title={t.confirm.danger_title}
+        description={t.confirm.danger_desc}
+        confirmText={t.confirm.confirm}
+        cancelText={t.confirm.cancel}
+        onCancel={() => { setDangerConfirmOpen(false); setPendingDangerId(null); addLog('WARN', '执行已取消：检测到高风险 SQL。'); }}
+        onConfirm={async () => { const id = pendingDangerId; setDangerConfirmOpen(false); setPendingDangerId(null); if (id) await runMigration(id); }}
+      />
       <div className="absolute bottom-2 right-3 text-[10px] text-gray-600 pointer-events-none">Powered by ApegGeek</div>
     </div>
   );

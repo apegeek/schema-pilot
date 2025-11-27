@@ -154,6 +154,12 @@ interface Translations {
     empty: string;
     resize_tooltip: string;
   };
+  confirm: {
+    danger_title: string;
+    danger_desc: string;
+    confirm: string;
+    cancel: string;
+  };
 }
 
 const translations: Record<Language, Translations> = {
@@ -307,6 +313,12 @@ const translations: Record<Language, Translations> = {
       title: "Execution Logs",
       empty: "No logs generated yet.",
       resize_tooltip: "Drag to adjust height"
+    },
+    confirm: {
+      danger_title: "Confirm Risky Operation",
+      danger_desc: "Potential destructive SQL detected (DROP/TRUNCATE/UPDATE/DELETE without WHERE). Continue?",
+      confirm: "Confirm",
+      cancel: "Cancel"
     }
   },
   zh: {
@@ -459,6 +471,12 @@ const translations: Record<Language, Translations> = {
       title: "执行日志",
       empty: "暂无日志。",
       resize_tooltip: "拖拽以调整高度"
+    },
+    confirm: {
+      danger_title: "危险操作确认",
+      danger_desc: "检测到可能存在破坏性操作（DROP/TRUNCATE/无 WHERE 的 UPDATE/DELETE 等）。确认继续执行迁移吗？",
+      confirm: "确定",
+      cancel: "取消"
     }
   }
 };
