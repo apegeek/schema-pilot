@@ -12,6 +12,7 @@ import HistoryTable from './components/HistoryTable';
 import LoginScreen from './components/LoginScreen';
 import { ScriptFile, DbConfig, LogEntry, MigrationStatus, HistoryRecord } from './types';
 import { PanelBottom, GripVertical, GripHorizontal, Save, X, ChevronRight, ChevronsLeft } from 'lucide-react';
+import Resizer from './components/Resizer';
 import { cacheService } from './services/cacheService';
 import { dbService } from './services/dbService';
 import { useLanguage } from './contexts/LanguageContext';
@@ -38,11 +39,8 @@ const App: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(420);
   const [editorWidth, setEditorWidth] = useState<number>(520);
-  const [dragging, setDragging] = useState<'none' | 'sidebar' | 'editor' | 'log'>('none');
   const mainRef = useRef<HTMLDivElement | null>(null);
   const columnRef = useRef<HTMLDivElement | null>(null);
-  const sidebarDragStartRef = useRef<number>(0);
-  const initialSidebarWidthRef = useRef<number>(sidebarWidth);
   const [isEditorFull, setIsEditorFull] = useState(false);
   const [logHeight, setLogHeight] = useState<number>(192);
   const [isGenOpen, setIsGenOpen] = useState(false);
@@ -86,34 +84,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
-    const onMove = (e: MouseEvent) => {
-      if (dragging === 'sidebar') {
-        const dx = e.clientX - sidebarDragStartRef.current;
-        const newW = initialSidebarWidthRef.current + dx;
-        setSidebarWidth(clamp(newW, 260, 560));
-      } else if (dragging === 'editor') {
-        const rect = mainRef.current?.getBoundingClientRect();
-        if (rect) {
-          const newWidth = clamp(rect.right - e.clientX, 320, Math.min(900, rect.width - 420));
-          setEditorWidth(newWidth);
-        }
-      } else if (dragging === 'log') {
-        const rect = columnRef.current?.getBoundingClientRect();
-        const bottom = rect ? rect.bottom : window.innerHeight;
-        const newHeight = clamp(bottom - e.clientY, 120, 480);
-        setLogHeight(newHeight);
-      }
-    };
-    const onUp = () => setDragging('none');
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [dragging]);
+  const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
   const addLog = useCallback((level: LogEntry['level'], message: string) => {
     setLogs(prev => [...prev, {
@@ -432,13 +403,12 @@ const App: React.FC = () => {
         />
         </div>
       {!isSidebarCollapsed && (
-        <div
-          className="w-3 bg-flyway-border/50 hover:bg-white/10 cursor-col-resize flex items-center justify-center"
-          onMouseDown={(e) => { setDragging('sidebar'); sidebarDragStartRef.current = e.clientX; initialSidebarWidthRef.current = sidebarWidth; }}
+        <Resizer
+          orientation="vertical"
+          className="w-3 bg-flyway-border/50 hover:bg-white/10 cursor-col-resize select-none"
           title={t.sidebar.resize_tooltip}
-        >
-          <GripVertical className="w-3 h-3 text-gray-500 pointer-events-none" />
-        </div>
+          onDrag={(dx) => setSidebarWidth(clamp(sidebarWidth + dx, 260, 560))}
+        />
       )}
       {/* Floating toggle button (top overlay), does not interfere with drag */}
       <button
@@ -472,6 +442,7 @@ const App: React.FC = () => {
           pointer-events: none;
           animation: haloPulseOrange 1.8s ease-in-out infinite;
         }
+        .no-select *, .no-select { user-select: none !important; }
       `}</style>
       <div className="flex-1 flex flex-col min-w-0" ref={columnRef}>
         <div className="flex flex-1 min-w-0 overflow-hidden" ref={mainRef}>
@@ -516,13 +487,16 @@ const App: React.FC = () => {
               <div className="flex-1 min-w-[420px] border-r border-flyway-border bg-[#1e1e1e]">
                 <HistoryTable history={history} />
               </div>
-              <div
-                className="w-3 bg-flyway-border/50 hover:bg-white/10 cursor-col-resize flex items-center justify-center"
-                onMouseDown={() => setDragging('editor')}
+              <Resizer
+                orientation="vertical"
+                className="w-3 bg-flyway-border/50 hover:bg-white/10 cursor-col-resize select-none"
                 title={t.sidebar.resize_tooltip}
-              >
-                <GripVertical className="w-3 h-3 text-gray-500 pointer-events-none" />
-              </div>
+                onDrag={(dx) => {
+                  const rect = mainRef.current?.getBoundingClientRect();
+                  const limit = rect ? Math.min(900, rect.width - 420) : 900;
+                  setEditorWidth(clamp(editorWidth - dx, 320, limit));
+                }}
+              />
               <div style={{ width: editorWidth }} className="min-w-[360px] bg-[#1e1e1e]">
                 {selectedScript ? (
                   <ScriptEditor 
@@ -569,13 +543,12 @@ const App: React.FC = () => {
           </div>
         )}
         {isLogOpen && (
-          <div
-            className="h-2 bg-flyway-border/50 hover:bg-white/10 cursor-row-resize flex items-center justify-center"
-            onMouseDown={() => setDragging('log')}
+          <Resizer
+            orientation="horizontal"
+            className="h-2 bg-flyway-border/50 hover:bg-white/10 cursor-row-resize select-none"
             title={t.logs.resize_tooltip}
-          >
-            <GripHorizontal className="w-3 h-3 text-gray-500 pointer-events-none" />
-          </div>
+            onDrag={(dy) => setLogHeight(clamp(logHeight - dy, 120, 480))}
+          />
         )}
         <LogPanel 
           logs={logs} 
