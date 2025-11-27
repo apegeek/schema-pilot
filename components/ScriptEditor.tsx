@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ScriptFile, MigrationStatus } from '../types';
-import { Play, Save, Bot, RotateCcw, FileText, AlertTriangle, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
+import { Play, Save, Bot, RotateCcw, FileText, AlertTriangle, Maximize2, Minimize2, Copy, Check, X } from 'lucide-react';
 // import { explainSqlScript } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,6 +23,7 @@ interface ScriptEditorProps {
   onUploadComplete?: () => void;
   onToggleFullScreen?: () => void;
   isFullScreen?: boolean;
+  onRequestCollapseSidebar?: (collapsed: boolean) => void;
 }
 
 const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
@@ -69,7 +70,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
   );
 };
 
-const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, isMigrating, scriptsPath, onUploadComplete, onToggleFullScreen, isFullScreen }) => {
+const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, isMigrating, scriptsPath, onUploadComplete, onToggleFullScreen, isFullScreen, onRequestCollapseSidebar }) => {
   const { t } = useLanguage();
   const [content, setContent] = useState(script.content);
   const [activeTab, setActiveTab] = useState<'editor' | 'ai'>('editor');
@@ -83,6 +84,11 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
   const [genOut, setGenOut] = useState("");
   const [genErr, setGenErr] = useState("");
   const [genLoading, setGenLoading] = useState(false);
+  const [nameModalOpen, setNameModalOpen] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [pendingGenPayload, setPendingGenPayload] = useState<{ defaultName: string; payload: string } | null>(null);
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [promptText, setPromptText] = useState('');
   const [promptLoading, setPromptLoading] = useState(false);
@@ -344,7 +350,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
   };
 
   const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-  const handleOpenGen = () => { setIsGenOpen(true); setGenDesc(''); setGenOut(''); setGenErr(''); };
+  const handleOpenGen = () => { setIsGenOpen(true); setGenDesc(''); setGenOut(''); setGenErr(''); onRequestCollapseSidebar && onRequestCollapseSidebar(true); };
   const handleGenerateSql = async () => {
     setGenErr('');
     setGenOut('');
@@ -411,12 +417,14 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
       next = arr.join('.');
     }
     const desc = slugify(genDesc || 'ai generated').replace(/-/g, '_');
-    const name = `V${next}__${desc}.sql`;
+    const defaultName = `V${next}__${desc}.sql`;
     const blocks = extractSqlBlocks(genOut);
     const payload = (blocks.length ? blocks.join('\n\n') : genOut).trim();
-    const ok = await dbService.uploadScriptToPath(scriptsPath, name, payload);
-    if (ok && onUploadComplete) onUploadComplete();
-    setIsGenOpen(false);
+    setPendingGenPayload({ defaultName, payload });
+    setNameInput(defaultName);
+    setNameError('');
+    setNameModalOpen(true);
+    onRequestCollapseSidebar && onRequestCollapseSidebar(true);
   };
 
   return (
@@ -492,7 +500,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
         {activeTab === 'ai' && (
           <div className="flex items-center gap-3 pr-3">
             <button
-              onClick={() => setIsPromptOpen(true)}
+              onClick={() => { setIsPromptOpen(true); onRequestCollapseSidebar && onRequestCollapseSidebar(true); }}
               className="px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
             >
               <FileText className="w-3.5 h-3.5" />
@@ -646,7 +654,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
                     placeholder={t.editor.gen_desc_placeholder}
                   />
                   <div className="mt-2 flex justify-end gap-2">
-                    <button onClick={() => setIsGenOpen(false)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
+                    <button onClick={() => { setIsGenOpen(false); onRequestCollapseSidebar && onRequestCollapseSidebar(false); }} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
                     <button onClick={handleGenerateSql} disabled={genLoading || !genDesc.trim()} className={`px-3 py-1.5 text-xs rounded ${genLoading ? 'bg-purple-800 text-gray-300' : 'bg-purple-700 text-white hover:bg-purple-600'} border border-purple-600`}>{t.editor.gen_generate}</button>
                   </div>
                   {genErr && <div className="mt-2 text-xs text-red-400">{genErr}</div>}
@@ -727,13 +735,56 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
                     {t.editor.prompt_save}
                   </button>
                   <button
-                    onClick={() => setIsPromptOpen(false)}
+                    onClick={() => { setIsPromptOpen(false); onRequestCollapseSidebar && onRequestCollapseSidebar(false); }}
                     className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700"
                   >
                     {t.editor.gen_cancel}
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {nameModalOpen && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#1e1e1e] w-[520px] border border-flyway-border rounded-lg shadow-xl">
+            <div className="p-3 border-b border-flyway-border flex items-center justify-between">
+              <div className="flex items-center gap-2 text-green-300 font-semibold">
+                <Save className="w-4 h-4" />
+                {t.editor.gen_save}
+              </div>
+              <button onClick={() => { setNameModalOpen(false); setNameError(''); onRequestCollapseSidebar && onRequestCollapseSidebar(false); }} className="text-gray-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="text-xs text-gray-400">V&lt;version&gt;__&lt;description&gt;.sql</div>
+              <input
+                value={nameInput}
+                onChange={(e) => { setNameInput(e.target.value); setNameError(''); }}
+                className="w-full bg-black/20 border border-flyway-border rounded p-2 text-xs text-gray-300 font-mono"
+              />
+              {nameError && <div className="text-xs text-red-400">{nameError}</div>}
+            </div>
+            <div className="p-3 border-t border-flyway-border flex justify-end gap-2">
+              <button onClick={() => { setNameModalOpen(false); setNameError(''); onRequestCollapseSidebar && onRequestCollapseSidebar(false); }} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.config.btn_cancel}</button>
+              <button
+                onClick={async () => {
+                  if (!pendingGenPayload) return;
+                  const finalName = nameInput.trim();
+                  const valid = /^V[^_]+__[^\s]+\.sql$/i.test(finalName);
+                  if (!valid) { setNameError('文件名不合法: 需匹配 V<版本>__<描述>.sql'); return; }
+                  setIsSavingName(true);
+                  const ok = await dbService.uploadScriptToPath(scriptsPath, finalName, pendingGenPayload.payload);
+                  setIsSavingName(false);
+                  if (ok) { setNameModalOpen(false); setIsGenOpen(false); onRequestCollapseSidebar && onRequestCollapseSidebar(false); if (onUploadComplete) onUploadComplete(); }
+                }}
+                disabled={isSavingName}
+                className={`px-3 py-1.5 text-xs rounded ${isSavingName ? 'bg-green-900 text-gray-300' : 'bg-green-700 hover:bg-green-600 text-white'} border border-green-600`}
+              >
+                {t.config.btn_save}
+              </button>
             </div>
           </div>
         </div>

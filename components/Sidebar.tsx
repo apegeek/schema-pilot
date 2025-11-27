@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScriptFile, MigrationStatus, DbConfig, TreeItem } from '../types';
-import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, Trash2, X, AlertTriangle, ChevronsLeft } from 'lucide-react';
 import { buildScriptTree } from '../utils/treeUtils';
 import { dbService } from '../services/dbService';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -17,6 +17,7 @@ interface SidebarProps {
   onRefresh: () => void;
   onLogout: () => void;
   isLoading?: boolean;
+  onCollapse?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -29,7 +30,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenConfig,
   onRefresh,
   onLogout,
-  isLoading = false
+  isLoading = false,
+  onCollapse
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const [isUploading, setIsUploading] = useState(false);
@@ -202,15 +204,16 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <Settings className="w-4 h-4" />
             </button>
-            <button 
-              onClick={onLogout}
-              className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-red-400 ml-1"
-              title={t.sidebar.logout_tooltip}
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+          <button 
+            onClick={onLogout}
+            className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-red-400 ml-1"
+            title={t.sidebar.logout_tooltip}
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+          
         </div>
+      </div>
         
         <div className="bg-black/30 p-3 rounded-lg text-xs text-gray-400 border border-flyway-border/50 mb-4 shadow-inner relative overflow-hidden">
           <div className="flex items-center justify-between mb-1.5">

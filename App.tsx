@@ -11,7 +11,7 @@ import ConfigModal from './components/ConfigModal';
 import HistoryTable from './components/HistoryTable';
 import LoginScreen from './components/LoginScreen';
 import { ScriptFile, DbConfig, LogEntry, MigrationStatus, HistoryRecord } from './types';
-import { PanelBottom, GripVertical, GripHorizontal } from 'lucide-react';
+import { PanelBottom, GripVertical, GripHorizontal, Save, X, ChevronRight, ChevronsLeft } from 'lucide-react';
 import { cacheService } from './services/cacheService';
 import { dbService } from './services/dbService';
 import { useLanguage } from './contexts/LanguageContext';
@@ -41,6 +41,8 @@ const App: React.FC = () => {
   const [dragging, setDragging] = useState<'none' | 'sidebar' | 'editor' | 'log'>('none');
   const mainRef = useRef<HTMLDivElement | null>(null);
   const columnRef = useRef<HTMLDivElement | null>(null);
+  const sidebarDragStartRef = useRef<number>(0);
+  const initialSidebarWidthRef = useRef<number>(sidebarWidth);
   const [isEditorFull, setIsEditorFull] = useState(false);
   const [logHeight, setLogHeight] = useState<number>(192);
   const [isGenOpen, setIsGenOpen] = useState(false);
@@ -48,6 +50,14 @@ const App: React.FC = () => {
   const [genOut, setGenOut] = useState("");
   const [genErr, setGenErr] = useState("");
   const [genLoading, setGenLoading] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [userCollapsed, setUserCollapsed] = useState(false);
+  const [modalCollapsed, setModalCollapsed] = useState(false);
+  const [nameModalOpen, setNameModalOpen] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [pendingGenPayload, setPendingGenPayload] = useState<{ defaultName: string; payload: string } | null>(null);
 
   useEffect(() => {
     const auth = cacheService.getAuthToken();
@@ -55,6 +65,10 @@ const App: React.FC = () => {
       setIsAuthenticated(true);
     }
   }, []);
+
+  useEffect(() => {
+    setIsSidebarCollapsed(userCollapsed || modalCollapsed);
+  }, [userCollapsed, modalCollapsed]);
 
   useEffect(() => {
     const local = cacheService.getConfig();
@@ -76,7 +90,9 @@ const App: React.FC = () => {
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
     const onMove = (e: MouseEvent) => {
       if (dragging === 'sidebar') {
-        setSidebarWidth(clamp(e.clientX, 260, 560));
+        const dx = e.clientX - sidebarDragStartRef.current;
+        const newW = initialSidebarWidthRef.current + dx;
+        setSidebarWidth(clamp(newW, 260, 560));
       } else if (dragging === 'editor') {
         const rect = mainRef.current?.getBoundingClientRect();
         if (rect) {
@@ -227,6 +243,7 @@ const App: React.FC = () => {
     setGenDesc('');
     setGenOut('');
     setGenErr('');
+    setModalCollapsed(true);
   };
   const extractSqlBlocks = (md: string): string[] => {
     const blocks: string[] = [];
@@ -314,12 +331,14 @@ const App: React.FC = () => {
     }
     const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
     const desc = slugify(genDesc || 'ai generated').replace(/-/g, '_');
-    const name = `V${next}__${desc}.sql`;
+    const defaultName = `V${next}__${desc}.sql`;
     const blocks = extractSqlBlocks(genOut);
     const payload = (blocks.length ? blocks.join('\n\n') : genOut).trim();
-    const ok = await dbService.uploadScriptToPath(config.scriptsPath, name, payload);
-    if (ok) handleRefresh();
-    setIsGenOpen(false);
+    setPendingGenPayload({ defaultName, payload });
+    setNameInput(defaultName);
+    setNameError('');
+    setNameModalOpen(true);
+    setModalCollapsed(true);
   };
 
   const handleSaveScript = async (id: string, newContent: string): Promise<boolean> => {
@@ -393,7 +412,11 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#1e1e1e] relative">
-      <div style={{ width: sidebarWidth }} className="shrink-0">
+      <div
+        style={{ width: isSidebarCollapsed ? 0 : sidebarWidth, transition: 'width 240ms ease' }}
+        className="shrink-0 overflow-hidden"
+        aria-hidden={isSidebarCollapsed}
+      >
         <Sidebar 
           scripts={scripts} 
           config={config} 
@@ -405,15 +428,37 @@ const App: React.FC = () => {
           onRefresh={handleRefresh}
           onLogout={handleLogout}
           isLoading={isLoadingData}
+            onCollapse={() => setUserCollapsed(true)}
         />
-      </div>
-      <div
-        className="w-3 bg-flyway-border/50 hover:bg-blue-500 cursor-col-resize flex items-center justify-center"
-        onMouseDown={() => setDragging('sidebar')}
-        title={t.sidebar.resize_tooltip}
+        </div>
+      {!isSidebarCollapsed && (
+        <div
+          className="w-3 bg-flyway-border/50 hover:bg-white/10 cursor-col-resize flex items-center justify-center"
+          onMouseDown={(e) => { setDragging('sidebar'); sidebarDragStartRef.current = e.clientX; initialSidebarWidthRef.current = sidebarWidth; }}
+          title={t.sidebar.resize_tooltip}
+        >
+          <GripVertical className="w-3 h-3 text-gray-500 pointer-events-none" />
+        </div>
+      )}
+      {/* Floating toggle button (top overlay), does not interfere with drag */}
+      <button
+        onClick={() => setUserCollapsed(!userCollapsed)}
+        className="absolute p-2 rounded-full bg-[#1e1e1e]/70 text-orange-300 hover:text-orange-200 hover:bg-[#1e1e1e]/60 transition-all duration-200 pulse-glow-orange"
+        title={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
+        style={{ left: (isSidebarCollapsed ? 8 : sidebarWidth - 10), top: 120, zIndex: 60, transition: 'left 240ms ease, transform 160ms ease' }}
+        onMouseEnter={(e) => { (e.currentTarget.style.transform = 'scale(1.06)'); }}
+        onMouseLeave={(e) => { (e.currentTarget.style.transform = 'scale(1)'); }}
+        aria-label={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
       >
-        <GripVertical className="w-3 h-3 text-gray-500 pointer-events-none" />
-      </div>
+        {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+      </button>
+      <style>{`
+        @keyframes pulseGlowOrange {
+          0%, 100% { box-shadow: 0 0 0px 0 rgba(0,0,0,0), 0 0 12px 4px rgba(255, 158, 0, 0.25), 0 0 40px 12px rgba(255, 158, 0, 0.12); }
+          50% { box-shadow: 0 0 0px 0 rgba(0,0,0,0), 0 0 18px 6px rgba(255, 158, 0, 0.40), 0 0 60px 18px rgba(255, 158, 0, 0.18); }
+        }
+        .pulse-glow-orange { animation: pulseGlowOrange 1.8s ease-in-out infinite; }
+      `}</style>
       <div className="flex-1 flex flex-col min-w-0" ref={columnRef}>
         <div className="flex flex-1 min-w-0 overflow-hidden" ref={mainRef}>
           {isEditorFull ? (
@@ -427,6 +472,7 @@ const App: React.FC = () => {
                   scriptsPath={config.scriptsPath}
                   onUploadComplete={() => handleRefresh()}
                   onToggleFullScreen={() => setIsEditorFull(false)}
+                  onRequestCollapseSidebar={(c) => setModalCollapsed(c)}
                   isFullScreen
                 />
               ) : (
@@ -457,7 +503,7 @@ const App: React.FC = () => {
                 <HistoryTable history={history} />
               </div>
               <div
-                className="w-3 bg-flyway-border/50 hover:bg-blue-500 cursor-col-resize flex items-center justify-center"
+                className="w-3 bg-flyway-border/50 hover:bg-white/10 cursor-col-resize flex items-center justify-center"
                 onMouseDown={() => setDragging('editor')}
                 title={t.sidebar.resize_tooltip}
               >
@@ -473,6 +519,7 @@ const App: React.FC = () => {
                     scriptsPath={config.scriptsPath}
                     onUploadComplete={() => handleRefresh()}
                     onToggleFullScreen={() => setIsEditorFull(true)}
+                    onRequestCollapseSidebar={(c) => setModalCollapsed(c)}
                   />
                 ) : (
                   <div className="flex flex-col h-full bg-[#1e1e1e]">
@@ -509,7 +556,7 @@ const App: React.FC = () => {
         )}
         {isLogOpen && (
           <div
-            className="h-2 bg-flyway-border/50 hover:bg-blue-500 cursor-row-resize flex items-center justify-center"
+            className="h-2 bg-flyway-border/50 hover:bg-white/10 cursor-row-resize flex items-center justify-center"
             onMouseDown={() => setDragging('log')}
             title={t.logs.resize_tooltip}
           >
@@ -589,10 +636,10 @@ const App: React.FC = () => {
                     className="w-full flex-1 bg-[#1e1e1e] border border-flyway-border rounded p-2 text-sm text-gray-200"
                     placeholder={t.editor.gen_desc_placeholder}
                   />
-                  <div className="mt-2 flex justify-end gap-2">
-                    <button onClick={() => setIsGenOpen(false)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
-                    <button onClick={handleGenerateSql} disabled={genLoading || !genDesc.trim()} className={`px-3 py-1.5 text-xs rounded ${genLoading ? 'bg-purple-800 text-gray-300' : 'bg-purple-700 text-white hover:bg-purple-600'} border border-purple-600`}>{t.editor.gen_generate}</button>
-                  </div>
+            <div className="mt-2 flex justify-end gap-2">
+              <button onClick={() => { setIsGenOpen(false); setModalCollapsed(false); }} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.editor.gen_cancel}</button>
+              <button onClick={handleGenerateSql} disabled={genLoading || !genDesc.trim()} className={`px-3 py-1.5 text-xs rounded ${genLoading ? 'bg-purple-800 text-gray-300' : 'bg-purple-700 text-white hover:bg-purple-600'} border border-purple-600`}>{t.editor.gen_generate}</button>
+            </div>
                   {genErr && <div className="mt-2 text-xs text-red-400">{genErr}</div>}
                 </div>
                 <div className="flex flex-col min-h-0">
@@ -631,6 +678,49 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {nameModalOpen && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#1e1e1e] w-[520px] border border-flyway-border rounded-lg shadow-xl">
+            <div className="p-3 border-b border-flyway-border flex items-center justify-between">
+              <div className="flex items-center gap-2 text-green-300 font-semibold">
+                <Save className="w-4 h-4" />
+                {t.editor.gen_save}
+              </div>
+              <button onClick={() => { setNameModalOpen(false); setNameError(''); setModalCollapsed(false); }} className="text-gray-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="text-xs text-gray-400">V&lt;version&gt;__&lt;description&gt;.sql</div>
+              <input
+                value={nameInput}
+                onChange={(e) => { setNameInput(e.target.value); setNameError(''); }}
+                className="w-full bg-black/20 border border-flyway-border rounded p-2 text-xs text-gray-300 font-mono"
+              />
+              {nameError && <div className="text-xs text-red-400">{nameError}</div>}
+            </div>
+            <div className="p-3 border-t border-flyway-border flex justify-end gap-2">
+              <button onClick={() => { setNameModalOpen(false); setNameError(''); setModalCollapsed(false); }} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.config.btn_cancel}</button>
+              <button
+                onClick={async () => {
+                  if (!pendingGenPayload) return;
+                  const finalName = nameInput.trim();
+                  const valid = /^V[^_]+__[^\s]+\.sql$/i.test(finalName);
+                  if (!valid) { setNameError('文件名不合法: 需匹配 V<版本>__<描述>.sql'); return; }
+                  setIsSavingName(true);
+                  const ok = await dbService.uploadScriptToPath(config.scriptsPath, finalName, pendingGenPayload.payload);
+                  setIsSavingName(false);
+                  if (ok) { setNameModalOpen(false); setIsGenOpen(false); setModalCollapsed(false); handleRefresh(); }
+                }}
+                disabled={isSavingName}
+                className={`px-3 py-1.5 text-xs rounded ${isSavingName ? 'bg-green-900 text-gray-300' : 'bg-green-700 hover:bg-green-600 text-white'} border border-green-600`}
+              >
+                {t.config.btn_save}
+              </button>
             </div>
           </div>
         </div>

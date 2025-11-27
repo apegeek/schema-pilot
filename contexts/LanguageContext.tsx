@@ -17,6 +17,8 @@ interface Translations {
     title: string;
     refresh_tooltip: string;
     config_tooltip: string;
+    collapse_tooltip: string;
+    expand_tooltip: string;
     logout_tooltip: string;
     loading: string;
     btn_history: string;
@@ -164,6 +166,8 @@ const translations: Record<Language, Translations> = {
       title: "SchemaPilot Studio",
       refresh_tooltip: "Refresh Cache & State",
       config_tooltip: "Configure Database",
+      collapse_tooltip: "Collapse sidebar",
+      expand_tooltip: "Expand sidebar",
       logout_tooltip: "Logout",
       loading: "Loading resources...",
       btn_history: "History",
@@ -309,6 +313,8 @@ const translations: Record<Language, Translations> = {
       title: "SchemaPilot Studio",
       refresh_tooltip: "刷新缓存与状态",
       config_tooltip: "数据库配置",
+      collapse_tooltip: "收起侧栏",
+      expand_tooltip: "展开侧栏",
       logout_tooltip: "退出登录",
       loading: "资源加载中...",
       btn_history: "变更历史",
