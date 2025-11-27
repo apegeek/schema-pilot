@@ -72,15 +72,19 @@ const App: React.FC = () => {
   useEffect(() => {
     const local = cacheService.getConfig();
     if (local?.redis?.enabled) {
-      dbService.getGlobalConfig(local.redis).then((remote) => {
-        if (remote) {
-          setConfig(remote);
-          addLog('INFO', 'Loaded global config from Redis.');
+      Promise.all([
+        dbService.getGlobalConfig(local.redis).catch(() => null),
+        dbService.getAiConfig(local.redis).catch(() => null)
+      ]).then(([remoteCfg, aiCfg]) => {
+        if (remoteCfg || aiCfg) {
+          const merged = remoteCfg ? { ...remoteCfg, ai: aiCfg || remoteCfg.ai } : { ...local, ai: aiCfg || local.ai };
+          setConfig(merged);
+          addLog('INFO', 'Loaded config and AI settings from Redis.');
         } else {
-          addLog('WARN', 'Redis global config not found; using local config.');
+          addLog('WARN', 'Redis config not found; using local config.');
         }
       }).catch(() => {
-        addLog('ERROR', 'Failed to load global config from Redis.');
+        addLog('ERROR', 'Failed to load config/AI from Redis.');
       });
     }
   }, []);

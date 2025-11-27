@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScriptFile, MigrationStatus, DbConfig, TreeItem } from '../types';
-import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, Trash2, X, AlertTriangle, ChevronsLeft } from 'lucide-react';
+import { Folder, FolderOpen, Database, CheckCircle2, AlertCircle, Clock, Settings, Table2, FileCode2, ChevronRight, ChevronDown, RefreshCw, LogOut, Loader2, Upload, Trash2, X, AlertTriangle, ChevronsLeft, Eye, EyeOff } from 'lucide-react';
 import { buildScriptTree } from '../utils/treeUtils';
 import { dbService } from '../services/dbService';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -39,6 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = useState<ScriptFile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [showDbAddr, setShowDbAddr] = useState(false);
   
 
   useEffect(() => {
@@ -205,7 +207,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <Settings className="w-4 h-4" />
             </button>
           <button 
-            onClick={onLogout}
+            onClick={() => setConfirmLogout(true)}
             className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-red-400 ml-1"
             title={t.sidebar.logout_tooltip}
           >
@@ -223,8 +225,16 @@ const Sidebar: React.FC<SidebarProps> = ({
              </div>
              <span className="font-mono text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-900/30 text-[10px]">{config.schema}</span>
           </div>
-          <div className="truncate text-gray-500 font-mono text-[10px]" title={`${config.host}:${config.port}/${config.database}`}>
-            {config.user}@{config.host}:{config.port}
+          <div className="text-gray-500 font-mono text-[10px] flex items-center justify-between gap-2">
+            <span className="truncate" title={`${config.host}:${config.port}/${config.database}`}>
+              {showDbAddr ? `${config.user}@${config.host}:${config.port}` : '******************'}
+            </span>
+            <button
+              onClick={() => setShowDbAddr(v => !v)}
+              className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white"
+            >
+              {showDbAddr ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
           </div>
           
           {isLoading && (
@@ -304,6 +314,33 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={`px-3 py-1.5 text-xs rounded ${isDeleting ? 'bg-red-900 text-gray-300' : 'bg-red-700 hover:bg-red-600 text-white'} border border-red-600`}
             >
               {t.sidebar.delete_confirm_btn}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    {confirmLogout && (
+      <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-30">
+        <div className="bg-[#1e1e1e] w-[520px] border border-flyway-border rounded-lg shadow-xl">
+          <div className="p-3 border-b border-flyway-border flex items-center justify-between">
+            <div className="flex items-center gap-2 text-red-300 font-semibold">
+              <LogOut className="w-4 h-4" />
+              {t.sidebar.logout_confirm_title}
+            </div>
+            <button onClick={() => setConfirmLogout(false)} className="text-gray-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4 space-y-2">
+            <div className="text-xs text-gray-400">{t.sidebar.logout_confirm_desc}</div>
+          </div>
+          <div className="p-3 border-t border-flyway-border flex justify-end gap-2">
+            <button onClick={() => setConfirmLogout(false)} className="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-700">{t.config.btn_cancel}</button>
+            <button
+              onClick={() => { setConfirmLogout(false); onLogout(); }}
+              className="px-3 py-1.5 text-xs rounded bg-red-700 text-white border border-red-600 hover:bg-red-600"
+            >
+              {t.sidebar.logout_confirm_btn}
             </button>
           </div>
         </div>

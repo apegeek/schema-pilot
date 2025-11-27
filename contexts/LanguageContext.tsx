@@ -36,6 +36,9 @@ interface Translations {
     delete_confirm_title: string;
     delete_confirm_desc: string;
     delete_confirm_btn: string;
+    logout_confirm_title: string;
+    logout_confirm_desc: string;
+    logout_confirm_btn: string;
   };
   config: {
     title: string;
@@ -186,7 +189,10 @@ const translations: Record<Language, Translations> = {
       delete_tooltip: "Delete script",
       delete_confirm_title: "Confirm Deletion",
       delete_confirm_desc: "This action will permanently remove the file.",
-      delete_confirm_btn: "Delete"
+      delete_confirm_btn: "Delete",
+      logout_confirm_title: "Confirm Logout",
+      logout_confirm_desc: "You will be signed out; unsaved changes may be lost.",
+      logout_confirm_btn: "Logout"
     },
     config: {
       title: "System Configuration",
@@ -335,7 +341,10 @@ const translations: Record<Language, Translations> = {
       delete_tooltip: "删除脚本",
       delete_confirm_title: "确认删除",
       delete_confirm_desc: "此操作将永久删除该文件。",
-      delete_confirm_btn: "删除"
+      delete_confirm_btn: "删除",
+      logout_confirm_title: "确认登出",
+      logout_confirm_desc: "将退出系统；未保存的更改可能会丢失。",
+      logout_confirm_btn: "登出"
     },
     config: {
       title: "系统配置",
