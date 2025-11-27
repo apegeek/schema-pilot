@@ -144,11 +144,11 @@ pnpm run preview
 
 ## 系统设计：Redis 缓存与键名约定
 - 缓存用途：存放 AI 模型配置（服务商、模型名、API Key），便于前端与后端统一读取，避免每次手动填写。
-- 键空间：
-  - `schema-pilot:ai:config`：AI 模型配置对象，结构如下：
-    - `provider`：`Gemini` 或 `DeepSeek`
-    - `model`：例如 `gemini-2.5-flash`、`deepseek-reasoner`
-    - `apiKey`：对应服务商的 API 密钥
+- 键空间（最新结构，扁平键名，无命名空间分隔符）：
+  - `schema-pilotaiconfig`：AI 模型配置对象（含 `provider`、`model`、`apiKey`）
+  - `schema-pilotdbconfig`：数据库全局配置
+  - `schema-pilotsecuritypassword`：应用登录密码
+  - `schema-pilotdbhistory`：`flyway_schema_history` 最新快照（用于缓存读取）
 - 路由接口：
   - `POST /api/ai/config/save`：保存 AI 配置到 Redis（需已启用 Redis 并正确设置连接信息）
   - `GET /api/ai/config/get`：读取 AI 配置；未设置时返回 `null`
