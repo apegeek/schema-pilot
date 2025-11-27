@@ -433,7 +433,7 @@ const translations: Record<Language, Translations> = {
     history: {
       title: "Flyway 版本历史",
       subtitle: "数据源自",
-      col_rank: "顺序 (Rank)",
+      col_rank: "顺序",
       col_version: "版本号",
       col_desc: "描述",
       col_type: "类型",
