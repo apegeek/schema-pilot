@@ -508,6 +508,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
               onClick={() => { setIsPromptOpen(true); onRequestCollapseSidebar && onRequestCollapseSidebar(true); }}
               className="px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
             >
+              <div className="w-2 h-2 rounded-full bg-orange-400/80 animate-pulse" />
               <FileText className="w-3.5 h-3.5" />
               {t.editor.prompt_open}
             </button>
@@ -527,6 +528,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-orange-400/80 animate-pulse" />
                   <Bot className="w-3.5 h-3.5" />
                   {t.editor.ai_reanalyze}
                 </span>

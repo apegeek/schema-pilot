@@ -176,10 +176,10 @@ pnpm run preview
 <div align="center">
   <table>
     <tr>
-      <td align="center" style="margin: 10px 0">
+      <td align="center" style="margin: 10px 0; padding-right: 24px;">
         <img alt="Alipay QR" src="./docs/donate-alipay.jpg" width="180" />
       </td>
-      <td align="center" style="margin: 10px 0">
+      <td align="center" style="margin: 10px 0; padding-left: 24px;">
         <img alt="WeChat QR" src="./docs/donate-wechat.jpg" width="180" />
       </td>
     </tr>
