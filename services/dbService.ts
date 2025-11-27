@@ -19,6 +19,18 @@ export const dbService = {
       return [];
     }
   },
+  fetchHistoryFromCache: async (redis?: { enabled?: boolean; host?: string; port?: string | number; dbIndex?: number; password?: string }): Promise<HistoryRecord[]> => {
+    try {
+      if (!redis?.enabled) return [];
+      const qs = `?host=${encodeURIComponent(String(redis?.host || ''))}&port=${encodeURIComponent(String(redis?.port || ''))}&dbIndex=${encodeURIComponent(String(redis?.dbIndex ?? ''))}&password=${encodeURIComponent(String(redis?.password || ''))}`;
+      const res = await fetch(`/api/history/cache${qs}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? (data as HistoryRecord[]) : [];
+    } catch (e) {
+      return [];
+    }
+  },
 
   // Simulates: Reading files from disk at config.scriptsPath
   fetchScriptsFromPath: async (path: string): Promise<ScriptFile[]> => {
@@ -117,9 +129,38 @@ export const dbService = {
       return false;
     }
   },
-  getAiConfig: async (): Promise<any | null> => {
+  saveGlobalConfig: async (config: DbConfig): Promise<boolean> => {
     try {
-      const res = await fetch('/api/ai/config/get');
+      const res = await fetch('/api/config/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config, redis: config.redis })
+      });
+      const data = await res.json();
+      return Boolean((data as any)?.ok);
+    } catch {
+      return false;
+    }
+  },
+  getGlobalConfig: async (redis?: { enabled?: boolean; host?: string; port?: string | number; dbIndex?: number; password?: string }): Promise<DbConfig | null> => {
+    try {
+      const qs = redis?.enabled
+        ? `?host=${encodeURIComponent(String(redis?.host || ''))}&port=${encodeURIComponent(String(redis?.port || ''))}&dbIndex=${encodeURIComponent(String(redis?.dbIndex ?? ''))}&password=${encodeURIComponent(String(redis?.password || ''))}`
+        : '';
+      const res = await fetch(`/api/config/get${qs}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data as any)?.config || null;
+    } catch {
+      return null;
+    }
+  },
+  getAiConfig: async (redis?: { enabled?: boolean; host?: string; port?: string | number; dbIndex?: number; password?: string }): Promise<any | null> => {
+    try {
+      const qs = redis?.enabled
+        ? `?host=${encodeURIComponent(String(redis?.host || ''))}&port=${encodeURIComponent(String(redis?.port || ''))}&dbIndex=${encodeURIComponent(String(redis?.dbIndex ?? ''))}&password=${encodeURIComponent(String(redis?.password || ''))}`
+        : '';
+      const res = await fetch(`/api/ai/config/get${qs}`);
       if (!res.ok) return null;
       const data = await res.json();
       return (data as any)?.ai || null;

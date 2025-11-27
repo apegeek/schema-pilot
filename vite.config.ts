@@ -300,11 +300,52 @@ export default defineConfig(({ mode }) => {
                     execution_time: Number(r.execution_time),
                     success: Boolean(r.success)
                   }));
+
+                  // Sync history to Redis cache when enabled
+                  try {
+                    if (cfg.redis?.enabled) {
+                      const client = createRedisClient({
+                        socket: { host: String(cfg.redis.host || '127.0.0.1'), port: Number(cfg.redis.port || 6379) },
+                        database: Number(cfg.redis.dbIndex ?? 0),
+                        password: cfg.redis.password ? String(cfg.redis.password) : undefined,
+                      });
+                      await client.connect();
+                      const key = 'schema-pilot:db:history';
+                      await client.set(key, JSON.stringify(data));
+                      await client.quit();
+                    }
+                  } catch {}
+
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify(data));
                 } catch (err: any) {
                   res.statusCode = 500;
                   res.end(JSON.stringify({ error: String(err?.message || 'History query failed') }));
+                }
+                return;
+              }
+
+              if (req.url.startsWith('/api/history/cache')) {
+                try {
+                  const u = new URL(req.url, 'http://localhost');
+                  const host = u.searchParams.get('host') || '127.0.0.1';
+                  const port = Number(u.searchParams.get('port') || 6379);
+                  const dbIndex = Number(u.searchParams.get('dbIndex') || 0);
+                  const password = u.searchParams.get('password') || '';
+                  const client = createRedisClient({
+                    socket: { host, port },
+                    database: dbIndex,
+                    password: password ? String(password) : undefined,
+                  });
+                  await client.connect();
+                  const raw = await client.get('schema-pilot:db:history');
+                  await client.quit();
+                  const arr = raw ? JSON.parse(raw) : [];
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify(Array.isArray(arr) ? arr : []));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ error: String(err?.message || 'History cache read failed') }));
                 }
                 return;
               }
@@ -412,10 +453,15 @@ export default defineConfig(({ mode }) => {
               if (req.url.startsWith('/api/redis-test')) {
                 try {
                   const body = await readJson(req);
+                  const hRaw = String(body.host ?? '').trim();
+                  const host = hRaw && hRaw !== 'undefined' ? hRaw : '127.0.0.1';
+                  const port = Number(body.port ?? 6379) || 6379;
+                  const dbIndex = Number(body.dbIndex ?? 0) || 0;
+                  const password = body.password ? String(body.password) : undefined;
                   const client = createRedisClient({
-                    socket: { host: String(body.host), port: Number(body.port || 6379) },
-                    database: Number(body.dbIndex ?? 0),
-                    password: body.password ? String(body.password) : undefined,
+                    socket: { host, port },
+                    database: dbIndex,
+                    password,
                   });
                   await client.connect();
                   await client.ping();
@@ -471,9 +517,15 @@ export default defineConfig(({ mode }) => {
               if (req.url.startsWith('/api/ai/config/get')) {
                 try {
                   const u = new URL(req.url, 'http://localhost');
-                  const host = u.searchParams.get('host') || '';
-                  void host; // reserved for future scoping
-                  const client = createRedisClient({ socket: { host: '127.0.0.1', port: 6379 } });
+                  const host = u.searchParams.get('host') || '127.0.0.1';
+                  const port = Number(u.searchParams.get('port') || 6379);
+                  const dbIndex = Number(u.searchParams.get('dbIndex') || 0);
+                  const password = u.searchParams.get('password') || '';
+                  const client = createRedisClient({
+                    socket: { host, port },
+                    database: dbIndex,
+                    password: password ? String(password) : undefined,
+                  });
                   await client.connect();
                   const key = 'schema-pilot:ai:config';
                   const raw = await client.get(key);
@@ -491,6 +543,99 @@ export default defineConfig(({ mode }) => {
                   }
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify({ ok: true, ai: aiCfg }));
+                }
+                return;
+              }
+
+              if (req.url.startsWith('/api/config/save')) {
+                try {
+                  const body = await readJson(req) as { config: any, redis?: any };
+                  const cfg = body.config;
+                  const redisCfg = body.redis;
+                  if (!cfg) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Missing config' }));
+                    return;
+                  }
+                  const dbCfg = {
+                    type: String(cfg.type || ''),
+                    host: String(cfg.host || ''),
+                    port: String(cfg.port || ''),
+                    database: String(cfg.database || ''),
+                    user: String(cfg.user || ''),
+                    password: String(cfg.password || ''),
+                    schema: String(cfg.schema || ''),
+                    scriptsPath: String(cfg.scriptsPath || ''),
+                  };
+                  const redisConn = cfg.redis || {};
+                  const appPassword = String(cfg.appPassword || '');
+                  if (redisCfg?.enabled) {
+                    const client = createRedisClient({
+                      socket: { host: String(redisCfg.host), port: Number(redisCfg.port || 6379) },
+                      database: Number(redisCfg.dbIndex ?? 0),
+                      password: redisCfg.password ? String(redisCfg.password) : undefined,
+                    });
+                    await client.connect();
+                    await client.set('schema-pilot:db:config', JSON.stringify(dbCfg));
+                    await client.set('schema-pilot:redis:config', JSON.stringify(redisConn));
+                    await client.set('schema-pilot:security:password', appPassword);
+                    await client.quit();
+                  } else {
+                    const p = path.resolve(projectRoot, '.schema-pilot');
+                    try {
+                      fs.mkdirSync(p, { recursive: true });
+                      fs.writeFileSync(path.join(p, 'db-config.json'), JSON.stringify(dbCfg || {}), 'utf-8');
+                      fs.writeFileSync(path.join(p, 'redis-config.json'), JSON.stringify(redisConn || {}), 'utf-8');
+                      fs.writeFileSync(path.join(p, 'security-password.txt'), appPassword, 'utf-8');
+                    } catch {}
+                  }
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ ok: true }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Save config failed') }));
+                }
+                return;
+              }
+
+              if (req.url.startsWith('/api/config/get')) {
+                try {
+                  const u = new URL(req.url, 'http://localhost');
+                  const host = u.searchParams.get('host') || '127.0.0.1';
+                  const port = Number(u.searchParams.get('port') || 6379);
+                  const dbIndex = Number(u.searchParams.get('dbIndex') || 0);
+                  const password = u.searchParams.get('password') || '';
+                  let cfg: any = null;
+                  try {
+                    const client = createRedisClient({ socket: { host, port }, database: dbIndex, password: password ? String(password) : undefined });
+                    await client.connect();
+                    const rawDb = await client.get('schema-pilot:db:config');
+                    const rawRedis = await client.get('schema-pilot:redis:config');
+                    const rawSec = await client.get('schema-pilot:security:password');
+                    await client.quit();
+                    const dbCfg = rawDb ? JSON.parse(rawDb) : {};
+                    const redisCfg = rawRedis ? JSON.parse(rawRedis) : {};
+                    const secPass = typeof rawSec === 'string' ? rawSec : '';
+                    cfg = { ...dbCfg, redis: redisCfg, appPassword: secPass };
+                  } catch {}
+                  if (!cfg || Object.keys(cfg).length === 0) {
+                    const p = path.resolve(projectRoot, '.schema-pilot');
+                    const fDb = path.join(p, 'db-config.json');
+                    const fRedis = path.join(p, 'redis-config.json');
+                    const fSec = path.join(p, 'security-password.txt');
+                    let dbCfg: any = {};
+                    let redisCfg: any = {};
+                    let secPass = '';
+                    try { if (fs.existsSync(fDb)) dbCfg = JSON.parse(fs.readFileSync(fDb, 'utf-8')); } catch {}
+                    try { if (fs.existsSync(fRedis)) redisCfg = JSON.parse(fs.readFileSync(fRedis, 'utf-8')); } catch {}
+                    try { if (fs.existsSync(fSec)) secPass = fs.readFileSync(fSec, 'utf-8'); } catch {}
+                    cfg = { ...dbCfg, redis: redisCfg, appPassword: secPass };
+                  }
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ ok: true, config: cfg }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Get config failed') }));
                 }
                 return;
               }

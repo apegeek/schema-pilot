@@ -57,6 +57,22 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const local = cacheService.getConfig();
+    if (local?.redis?.enabled) {
+      dbService.getGlobalConfig(local.redis).then((remote) => {
+        if (remote) {
+          setConfig(remote);
+          addLog('INFO', 'Loaded global config from Redis.');
+        } else {
+          addLog('WARN', 'Redis global config not found; using local config.');
+        }
+      }).catch(() => {
+        addLog('ERROR', 'Failed to load global config from Redis.');
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
     const onMove = (e: MouseEvent) => {
       if (dragging === 'sidebar') {
@@ -96,6 +112,16 @@ const App: React.FC = () => {
   const loadData = useCallback(async (currentConfig: DbConfig) => {
     setIsLoadingData(true);
     
+    try {
+      if (currentConfig.redis?.enabled) {
+        const cached = await dbService.fetchHistoryFromCache(currentConfig.redis);
+        if (Array.isArray(cached) && cached.length) {
+          setHistory(cached);
+          addLog('INFO', `Redis Cache: Loaded ${cached.length} records from cache.`);
+        }
+      }
+    } catch {}
+
     // 1. Always load History from DB (no cache)
     try {
       const freshHistory = await dbService.fetchHistoryFromDb(currentConfig);
@@ -227,7 +253,7 @@ const App: React.FC = () => {
     setGenOut('');
     setGenLoading(true);
     try {
-      const aiCfg = await dbService.getAiConfig();
+      const aiCfg = await dbService.getAiConfig(config.redis);
       const reqCfg: any = aiCfg ? { ...config, ai: aiCfg } : config;
       const res = await fetch('/api/ai/generate-sql/stream', {
         method: 'POST',
@@ -486,17 +512,52 @@ const App: React.FC = () => {
       <ConfigModal 
         isOpen={isConfigOpen} 
         config={config} 
-        onClose={() => setIsConfigOpen(false)}
+        onClose={() => setIsConfigOpen(false)} 
         onSave={(newConfig) => {
-          setConfig(newConfig);
-          addLog('INFO', 'Configuration updated. Initiating reload...');
+          const wasEnabled = Boolean(config.redis?.enabled);
+          const nowEnabled = Boolean(newConfig.redis?.enabled);
+
+          if (wasEnabled && !nowEnabled) {
+            dbService.getGlobalConfig(config.redis).then(remote => {
+              dbService.getAiConfig(config.redis).then(aiRemote => {
+                let merged = remote
+                  ? { ...remote, ...newConfig, ai: aiRemote || remote?.ai || newConfig.ai }
+                  : { ...newConfig, ai: aiRemote || newConfig.ai };
+                if (remote) {
+                  merged = {
+                    ...merged,
+                    redis: {
+                      ...(remote?.redis || {}),
+                      ...(newConfig.redis || {}),
+                      enabled: false
+                    }
+                  };
+                } else if (newConfig.redis) {
+                  merged = {
+                    ...merged,
+                    redis: { ...newConfig.redis, enabled: false }
+                  };
+                }
+                setConfig(merged);
+                cacheService.saveConfig(merged);
+                addLog('INFO', 'Redis disabled. Migrated latest config from Redis to local storage.');
+                if (isAuthenticated) loadData(merged);
+              });
+            });
+          } else {
+            setConfig(newConfig);
+            addLog('INFO', 'Configuration updated. Initiating reload...');
+            if (isAuthenticated) loadData(newConfig);
+          }
+
           dbService.saveAiConfig(newConfig).then(ok => {
             if (ok) addLog('SUCCESS', 'AI configuration saved to Redis.');
             else addLog('WARN', 'AI configuration not saved (Redis disabled or error).');
           });
-          if (isAuthenticated) {
-            loadData(newConfig);
-          }
+          dbService.saveGlobalConfig(newConfig).then(ok => {
+            if (ok) addLog('SUCCESS', 'Global configuration saved to Redis.');
+            else addLog('WARN', 'Global configuration not saved (Redis disabled or error).');
+          });
         }}
       />
       {isGenOpen && (

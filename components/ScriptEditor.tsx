@@ -154,7 +154,8 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
     setIsAnalyzing(true);
     setAnalysisDone(false);
     try {
-      const aiCfg = await dbService.getAiConfig();
+      const cfg = cacheService.getConfig();
+      const aiCfg = await dbService.getAiConfig(cfg.redis);
       const res = await fetch('/api/ai/analyze/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -349,8 +350,8 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
     setGenOut('');
     setGenLoading(true);
     try {
-      const aiCfg = await dbService.getAiConfig();
       const cfg = cacheService.getConfig();
+      const aiCfg = await dbService.getAiConfig(cfg.redis);
       const reqCfg: any = aiCfg ? { ...cfg, ai: aiCfg } : cfg;
       const res = await fetch('/api/ai/generate-sql/stream', {
         method: 'POST',
@@ -717,7 +718,8 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
                   
                   <button
                     onClick={async () => {
-                      const ok = await dbService.saveAnalyzePrompt(promptText);
+                      const cfg = cacheService.getConfig();
+                      const ok = await dbService.saveAnalyzePrompt(promptText, cfg.redis);
                       setPromptStatus(ok ? 'success' : 'error');
                     }}
                     className="px-3 py-1.5 text-xs rounded bg-purple-700 text-white border border-purple-600 hover:bg-purple-600"
