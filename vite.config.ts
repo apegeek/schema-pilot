@@ -684,12 +684,12 @@ export default defineConfig(({ mode }) => {
                     await client.set('schema-pilot:ai:prompt:analyze', promptText);
                     await client.quit();
                   } else {
-                    const client = createRedisClient({ socket: { host: '127.0.0.1', port: 6379 } });
-                    try {
-                      await client.connect();
-                      await client.set('schema-pilot:ai:prompt:analyze', promptText);
-                      await client.quit();
-                    } catch {}
+                    const p = path.resolve(projectRoot, 'prompts');
+                    if (!fs.existsSync(p)) {
+                      try { fs.mkdirSync(p, { recursive: true }); } catch {}
+                    }
+                    const out = path.join(p, 'analyze.md');
+                    try { fs.writeFileSync(out, promptText, 'utf-8'); } catch {}
                   }
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify({ ok: true }));
