@@ -84,6 +84,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
   const [genOut, setGenOut] = useState("");
   const [genErr, setGenErr] = useState("");
   const [genLoading, setGenLoading] = useState(false);
+  const [genStreamHasData, setGenStreamHasData] = useState(false);
   const [nameModalOpen, setNameModalOpen] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState('');
@@ -355,6 +356,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
     setGenErr('');
     setGenOut('');
     setGenLoading(true);
+    setGenStreamHasData(false);
     try {
       const cfg = cacheService.getConfig();
       const aiCfg = await dbService.getAiConfig(cfg.redis);
@@ -367,11 +369,13 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
       if (!res.body) {
         const out = await dbService.generateSql(reqCfg, genDesc);
         setGenOut(out);
+        setGenStreamHasData(true);
         return;
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let first = false;
       while (!done) {
         const { value, done: d } = await reader.read();
         done = d;
@@ -387,6 +391,7 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
               const parsed = JSON.parse(raw);
               if (typeof parsed === 'string') data = parsed;
             } catch {}
+            if (!first) { first = true; setGenStreamHasData(true); }
             setGenOut(prev => prev + data);
           }
         }
@@ -662,7 +667,15 @@ const ScriptEditor: React.FC<ScriptEditorProps> = ({ script, onSave, onMigrate, 
                 <div className="flex flex-col min-h-0">
                   <div className="text-xs text-gray-400 mb-1">{t.editor.gen_output_title}</div>
                   <div className="flex-1 min-h-0 bg-black/30 border border-flyway-border rounded overflow-hidden">
-                    <div className="h-full overflow-y-auto p-2">
+                    <div className="relative h-full overflow-y-auto p-2">
+                      {genLoading && !genStreamHasData && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-10">
+                          <div className="flex items-center gap-2 text-purple-300">
+                            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                            <span className="text-xs">{t.editor.thinking}</span>
+                          </div>
+                        </div>
+                      )}
                       <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
                         components={{ code: CodeBlock }}

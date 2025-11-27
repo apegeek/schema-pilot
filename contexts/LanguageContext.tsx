@@ -116,6 +116,7 @@ interface Translations {
     gen_desc_placeholder: string;
     gen_generate: string;
     gen_output_title: string;
+    thinking: string;
     gen_save: string;
     gen_cancel: string;
     prompt_open: string;
@@ -265,6 +266,7 @@ const translations: Record<Language, Translations> = {
       gen_desc_placeholder: "Entities, fields, constraints, indexes, relationships...",
       gen_generate: "Generate",
       gen_output_title: "Generated SQL",
+      thinking: "Thinking...",
       gen_save: "Save as new version",
       gen_cancel: "Cancel",
       prompt_open: "Edit Prompt",
@@ -412,6 +414,7 @@ const translations: Record<Language, Translations> = {
       gen_desc_placeholder: "实体、字段、约束、索引、关系...",
       gen_generate: "生成",
       gen_output_title: "生成的 SQL",
+      thinking: "思考中...",
       gen_save: "保存为新版本",
       gen_cancel: "取消",
       prompt_open: "编辑提示词",

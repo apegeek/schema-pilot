@@ -48,6 +48,7 @@ const App: React.FC = () => {
   const [genOut, setGenOut] = useState("");
   const [genErr, setGenErr] = useState("");
   const [genLoading, setGenLoading] = useState(false);
+  const [genStreamHasData, setGenStreamHasData] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [userCollapsed, setUserCollapsed] = useState(false);
   const [modalCollapsed, setModalCollapsed] = useState(false);
@@ -214,6 +215,7 @@ const App: React.FC = () => {
     setGenDesc('');
     setGenOut('');
     setGenErr('');
+    setGenStreamHasData(false);
     setModalCollapsed(true);
   };
   const extractSqlBlocks = (md: string): string[] => {
@@ -240,6 +242,7 @@ const App: React.FC = () => {
     setGenErr('');
     setGenOut('');
     setGenLoading(true);
+    setGenStreamHasData(false);
     try {
       const aiCfg = await dbService.getAiConfig(config.redis);
       const reqCfg: any = aiCfg ? { ...config, ai: aiCfg } : config;
@@ -251,11 +254,13 @@ const App: React.FC = () => {
       if (!res.body) {
         const out = await dbService.generateSql(reqCfg, genDesc);
         setGenOut(out);
+        setGenStreamHasData(true);
         return;
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let first = false;
       while (!done) {
         const { value, done: d } = await reader.read();
         done = d;
@@ -271,6 +276,7 @@ const App: React.FC = () => {
               const parsed = JSON.parse(raw);
               if (typeof parsed === 'string') data = parsed;
             } catch {}
+            if (!first) { first = true; setGenStreamHasData(true); }
             setGenOut(prev => prev + data);
           }
         }
@@ -415,7 +421,7 @@ const App: React.FC = () => {
         onClick={() => setUserCollapsed(!userCollapsed)}
         className="absolute p-0 bg-transparent outline-none text-orange-300 hover:text-orange-200 transition-transform duration-200 glow-toggle"
         title={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
-        style={{ left: (isSidebarCollapsed ? 8 : sidebarWidth - 10), top: 120, zIndex: 60, transition: 'left 240ms ease, transform 160ms ease' }}
+        style={{ left: (isSidebarCollapsed ? 8 : sidebarWidth - 5), top: 120, zIndex: 60, transition: 'left 240ms ease, transform 160ms ease' }}
         onMouseEnter={(e) => { (e.currentTarget.style.transform = 'scale(1.06)'); }}
         onMouseLeave={(e) => { (e.currentTarget.style.transform = 'scale(1)'); }}
         aria-label={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
@@ -632,7 +638,15 @@ const App: React.FC = () => {
                 <div className="flex flex-col min-h-0">
                   <div className="text-xs text-gray-400 mb-1">{t.editor.gen_output_title}</div>
                   <div className="flex-1 min-h-0 bg-black/30 border border-flyway-border rounded overflow-hidden">
-                    <div className="h-full overflow-y-auto p-2 text-xs">
+                    <div className="relative h-full overflow-y-auto p-2 text-xs">
+                      {genLoading && !genStreamHasData && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-10">
+                          <div className="flex items-center gap-2 text-purple-300">
+                            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                            <span className="text-xs">{t.editor.thinking}</span>
+                          </div>
+                        </div>
+                      )}
                       <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
                         components={{
