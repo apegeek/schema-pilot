@@ -165,7 +165,7 @@ pnpm run preview
 ## License
 - Community License — free for study/research and internal use (incl. production); not allowed to sell or distribute for a fee without authorization.
 - For commercial licensing, contact: `daijiang@apegeek.com`.
-- See `LICENSE` in repo root.
+- See [LICENSE](./LICENSE) (Chinese) and [LICENSE.en](./LICENSE.en) (English).
 
 ## Author
 - Full-stack engineer focused on high-quality delivery and engineering practices; passionate about AI apps, cloud-native/DevOps, data engineering, and database evolution.

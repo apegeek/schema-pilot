@@ -157,25 +157,6 @@ pnpm run preview
   - 开发模式下，Redis 的连接信息在“设置-缓存 (Redis)”中配置；启用后保存即生效。
   - 为安全起见，生产环境应将 Redis 与 AI Key 的读写代理到后端服务，并做好权限控制与审计。
 
-## SEO 与搜索优化（GitHub 搜索 Flyway）
-- 项目名与描述：
-  - 英文：`SchemaPilot Studio — Visual Flyway Migration Workbench`
-  - 中文：`SchemaPilot Studio — 数据库迁移可视化工作台`
-- 关键词（建议复制到仓库简介与 Topics）：
-  - `flyway`、`flyway migration`、`schema history`、`database migration`、`sql`、`react`、`vite`
-- README 优化要点：
-  - 首屏标题、副标题与关键词明确出现“Flyway”；顶端已加入 `Flyway • Database Migration • Schema History • SQL` 关键词行
-  - 清晰的功能列表、快速开始、截图/GIF、架构说明与路线图
-  - 英文与中文双语描述同时存在，提升搜索命中率
-  - 在 Releases 与 Tags 中标注语义化版本（如 `v1.1.0`），便于外部引用与聚合
-  - 在 GitHub 仓库设置中添加 Topics：`flyway` `database-migration` `schema-history` `sql` `react` `vite`
-
-## 路线图
-- **数据源扩展**：支持更多数据库类型与云托管服务
-- **审批与安全**：脚本变更审计、只读/维护窗口策略
-- **团队协作**：多人编辑与变更 CR 流程
-- **生产后端**：将开发路由替换为独立服务，提供鉴权与审计
-
 ## 第三方依赖与鸣谢
 - 核心理念与规范
   - Flyway — 数据库迁移与 `flyway_schema_history` 约定，推动脚本版本化与可追溯（https://flywaydb.org/）。
