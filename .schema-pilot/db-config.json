@@ -1,1 +1,0 @@
-{"type":"PostgreSQL","host":"localhost","port":"2345","database":"geekdb","user":"geek","password":"geek","schema":"geek","scriptsPath":"d:/demo"}

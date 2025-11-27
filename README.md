@@ -49,28 +49,47 @@
 - `POST /api/ai/analyze/stream`：AI 分析流式输出（`vite.config.ts:689` 起）
 - `POST /api/ai/generate-sql/stream`：AI 生成 SQL 流式输出（`vite.config.ts:856` 起）
 
+### 后端接口（真实服务端）
+- `GET /api/scripts?path=...` 列出脚本（`server/server.js:312`）
+- `POST /api/scripts/upload` 上传脚本（`server/server.js:336`）
+- `POST /api/scripts/save` 保存脚本内容（`server/server.js:344`）
+- `POST /api/history` 查询迁移历史（`server/server.js:240`）
+- `GET /api/history/cache?host&port&dbIndex&password` 读取缓存历史（`server/server.js:300`）
+- `POST /api/migrate` 执行迁移（`server/server.js:321`）
+- `POST /api/config/save` 保存全局配置到 Redis（`server/server.js:368`）
+- `GET /api/config/get` 读取全局配置（`server/server.js:376`）
+- `POST /api/ai/config/save` 保存 AI 配置到 Redis（`server/server.js:387`）
+- `GET /api/ai/config/get` 读取 AI 配置（`server/server.js:395`）
+
 ## 快速开始
 ### 环境要求
-- Node.js 18+
-- 推荐包管理器：pnpm
+- Node.js 18+（推荐 20+）
+- 包管理器：npm 或 pnpm（本文命令以 npm 为例）
 
-### 安装与启动
+### 安装与启动（开发模式）
 ```bash
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 ```
 访问：`http://localhost:3000`
 
-### 构建与预览
+同时启动后端（另一个终端）：
 ```bash
-pnpm run build
-pnpm run preview
+npm run start:server
+```
+默认监听：`http://localhost:4000`
+
+### 构建与预览（前端）
+```bash
+npm run build
+npm run preview
 ```
 
 ## 使用说明
 - 配置
   - 打开右上角设置，填写数据库信息与脚本目录（如 `D:\demo`）
   - “测试连接”会进行真实连接与 `SELECT 1` 校验
+  - 注意：服务端要求数据库类型枚举为 `'PostgreSQL'`、`'MySQL'` 或 `'MariaDB'`（`server/server.js:249`）；不要使用小写别名
 - 浏览脚本
   - 左侧树显示脚本；点击文件在右侧查看与编辑
   - 上传按钮支持 `.sql` 文件，保存到你配置的目录
@@ -127,18 +146,71 @@ pnpm run preview
 - **国际化**：中英文切换，界面文本与提示同步适配。
 - **生产部署建议**：开发路由便于调试，生产环境可替换为后端服务进行鉴权与审计。
 
-## 部署
-- 本项目为前端 SPA 应用，可配合任何静态服务器部署 `dist/`
-  - Nginx 示例：
-    ```nginx
-    server {
+## 部署（详细步骤）
+1) 启动后端（进入服务端模块）
+```bash
+cd server
+npm install
+# 通用：
+npm start              # 等价于 node server.js
+# Windows：
+npm run start:win      # 使用 PowerShell 启动，默认端口 4000
+# Linux：
+npm run start:linux    # 使用 Bash 启动
+```
+默认监听：`http://localhost:4000`
+
+2) 构建前端（进入客户端模块）
+```bash
+cd client
+npm install
+npm run build          # 产物输出到 client/dist
+```
+
+3) Nginx 配置（Windows 路径示例）
+```nginx
+http {
+  include       mime.types;
+  default_type  application/octet-stream;
+  sendfile      on;
+
+  upstream schema_pilot_api { server 127.0.0.1:4000; }
+
+  server {
       listen 80;
-      server_name your-domain;
-      root /var/www/schema-pilot/dist;
-      location / { try_files $uri /index.html; }
-    }
-    ```
-- 开发服务内置了部分后端路由（文件读取/上传、连接测试），生产环境请按需替换为你自己的后端服务。
+      server_name localhost;
+
+      root  C:/Workspace/Html/schema-pilot/client/dist;
+      index index.html;
+
+      location / { try_files $uri $uri/ /index.html; }
+
+      location /api/ {
+          proxy_pass         http://schema_pilot_api;
+          proxy_http_version 1.1;
+          proxy_set_header   Host $host;
+          proxy_set_header   X-Real-IP $remote_addr;
+          proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header   X-Forwarded-Proto $scheme;
+
+          proxy_buffering    off;
+          proxy_read_timeout 600s;
+          proxy_send_timeout 600s;
+      }
+  }
+}
+```
+启动 / 重载 Nginx：
+```bash
+nginx -t && nginx -s reload
+```
+
+4) 浏览器访问
+- 打开 `http://localhost/`
+- 进入应用，配置数据库与脚本目录后，验证接口：
+  - 列表脚本：`GET /api/scripts?path=...`
+  - 查询历史：`POST /api/history`
+  - 执行迁移：`POST /api/migrate`
 
 ## 系统设计：Redis 缓存与键名约定
 - 缓存用途：存放 AI 模型配置（服务商、模型名、API Key），便于前端与后端统一读取，避免每次手动填写。
@@ -187,7 +259,7 @@ pnpm run preview
 ---
 
 
-## 作者
+## 关于作者
 - 85后全栈工程师，职业生涯献给编程与产品化实践，长期专注高质量交付与工程化能力建设。
 - 持续钻研前沿技术：AI 应用与工程、云原生与 DevOps、数据工程与数据库演进；相信技术与体验的统一价值。
 - 热爱交友与户外，倡导开放协作与知识共享，愿与同行共建更卓越的数据与应用生态。

@@ -1,0 +1,19 @@
+{
+  "name": "schema-pilot-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "start:win": "powershell -ExecutionPolicy Bypass -File ./start.ps1 -Port 4000",
+    "start:linux": "bash ./start.sh",
+    "install-service:linux": "bash ./install-systemd.sh",
+    "install-service:win": "powershell -ExecutionPolicy Bypass -File ./install-service.ps1 -Name SchemaPilot"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.3",
+    "pg": "^8.13.1",
+    "redis": "^4.7.0"
+  }
+}
+

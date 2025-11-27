@@ -27,7 +27,3 @@ pnpm-debug.log*
 .netlify/
 .next/
 .schema-pilot/
-client/dist/
-.vite/
-**/node_modules/
-
