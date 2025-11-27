@@ -421,7 +421,7 @@ const App: React.FC = () => {
         onClick={() => setUserCollapsed(!userCollapsed)}
         className="absolute p-0 bg-transparent outline-none text-orange-300 hover:text-orange-200 transition-transform duration-200 glow-toggle"
         title={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
-        style={{ left: (isSidebarCollapsed ? 8 : sidebarWidth - 5), top: 80, zIndex: 60, transition: 'left 240ms ease, transform 160ms ease' }}
+        style={{ left: (isSidebarCollapsed ? 8 : sidebarWidth - 5), top: 135, zIndex: 40, transition: 'left 240ms ease, transform 160ms ease' }}
         onMouseEnter={(e) => { (e.currentTarget.style.transform = 'scale(1.06)'); }}
         onMouseLeave={(e) => { (e.currentTarget.style.transform = 'scale(1)'); }}
         aria-label={isSidebarCollapsed ? t.sidebar.expand_tooltip : t.sidebar.collapse_tooltip}
