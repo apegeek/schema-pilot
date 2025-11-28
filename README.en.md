@@ -49,22 +49,40 @@
 - `POST /api/ai/analyze/stream`: Streaming AI analysis
 - `POST /api/ai/generate-sql/stream`: Streaming AI SQL generation
 
+### Backend APIs (Real Server)
+- `GET /api/scripts?path=...` list scripts (`server/server.js:312`)
+- `POST /api/scripts/upload` upload script (`server/server.js:336`)
+- `POST /api/scripts/save` save script content (`server/server.js:344`)
+- `POST /api/history` query migration history (`server/server.js:240`)
+- `GET /api/history/cache?host&port&dbIndex&password` read cached history (`server/server.js:300`)
+- `POST /api/migrate` execute migration (`server/server.js:321`)
+- `POST /api/config/save` save global config to Redis (`server/server.js:368`)
+- `GET /api/config/get` read global config (`server/server.js:376`)
+- `POST /api/ai/config/save` save AI config to Redis (`server/server.js:387`)
+- `GET /api/ai/config/get` read AI config (`server/server.js:395`)
+
 ## Quick Start
 ### Requirements
-- Node.js 18+
-- Recommended package manager: pnpm
+- Node.js 18+ (Recommended 20+)
+- Package manager: npm or pnpm (examples use npm)
 
-### Install & Launch
+### Install & Launch (Dev Mode)
 ```bash
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 ```
 Open: `http://localhost:3000`
 
-### Build & Preview
+Start backend in another terminal:
 ```bash
-pnpm run build
-pnpm run preview
+npm run start:server
+```
+Default backend: `http://localhost:4000`
+
+### Build & Preview (Frontend)
+```bash
+npm run build
+npm run preview
 ```
 
 ## Usage
@@ -100,18 +118,71 @@ pnpm run preview
 - i18n: Chinese/English toggle
 - Production notes: dev router for convenience; replace with your backend for auth & audit in production
 
-## Deployment
-- SPA; serve `dist/` with any static server
-  - Nginx example:
-    ```nginx
-    server {
+## Deployment (Detailed Steps)
+1) Start Backend (enter server module)
+```bash
+cd server
+npm install
+# Common:
+npm start              # same as: node server.js
+# Windows:
+npm run start:win      # PowerShell startup, default port 4000
+# Linux:
+npm run start:linux    # Bash startup
+```
+Backend: `http://localhost:4000`
+
+2) Build Frontend (enter client module)
+```bash
+cd client
+npm install
+npm run build          # outputs to client/dist
+```
+
+3) Nginx config (Windows path example)
+```nginx
+http {
+  include       mime.types;
+  default_type  application/octet-stream;
+  sendfile      on;
+
+  upstream schema_pilot_api { server 127.0.0.1:4000; }
+
+  server {
       listen 80;
-      server_name your-domain;
-      root /var/www/schema-pilot/dist;
-      location / { try_files $uri /index.html; }
-    }
-    ```
-- Dev server includes some backend routes (file ops, connection tests); replace with your own service in production
+      server_name localhost;
+
+      root  C:/Workspace/Html/schema-pilot/client/dist;
+      index index.html;
+
+      location / { try_files $uri $uri/ /index.html; }
+
+      location /api/ {
+          proxy_pass         http://schema_pilot_api;
+          proxy_http_version 1.1;
+          proxy_set_header   Host $host;
+          proxy_set_header   X-Real-IP $remote_addr;
+          proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header   X-Forwarded-Proto $scheme;
+
+          proxy_buffering    off;
+          proxy_read_timeout 600s;
+          proxy_send_timeout 600s;
+      }
+  }
+}
+```
+Reload Nginx:
+```bash
+nginx -t && nginx -s reload
+```
+
+4) Access in Browser
+- Open `http://localhost/`
+- Configure DB & scripts path in the app and validate:
+  - list scripts: `GET /api/scripts?path=...`
+  - query history: `POST /api/history`
+  - execute migration: `POST /api/migrate`
 
 ## System Design: Redis Cache & Keyspace
 - Purpose: store AI model config (provider/model/apiKey) for unified reads without re-entering
