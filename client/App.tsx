@@ -390,6 +390,16 @@ const App: React.FC = () => {
     await runMigration(id);
   };
 
+  const handleJumpFromHistory = (record: HistoryRecord) => {
+    const s = scripts.find(x => x.name === record.script);
+    if (s) {
+      setSelectedScriptId(s.id);
+      addLog('INFO', `Jumped to script: ${s.name}`);
+    } else {
+      addLog('WARN', `Script not found: ${record.script}`);
+    }
+  };
+
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -500,7 +510,7 @@ const App: React.FC = () => {
           ) : (
             <>
               <div className="flex-1 min-w-[420px] border-r border-flyway-border bg-[#1e1e1e]">
-                <HistoryTable history={history} />
+                <HistoryTable history={history} onJump={handleJumpFromHistory} />
               </div>
               <Resizer
                 orientation="vertical"

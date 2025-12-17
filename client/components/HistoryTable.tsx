@@ -6,9 +6,10 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface HistoryTableProps {
   history: HistoryRecord[];
+  onJump?: (record: HistoryRecord) => void;
 }
 
-const HistoryTable: React.FC<HistoryTableProps> = ({ history }) => {
+const HistoryTable: React.FC<HistoryTableProps> = ({ history, onJump }) => {
   const { t } = useLanguage();
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
@@ -46,7 +47,15 @@ const HistoryTable: React.FC<HistoryTableProps> = ({ history }) => {
                     history.map((record) => (
                       <tr key={record.installed_rank} className="hover:bg-white/5 transition-colors">
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-400 font-mono">{record.installed_rank}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-400 font-mono">{record.version}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium font-mono">
+                          <button
+                            onClick={() => onJump && onJump(record)}
+                            className="text-blue-400 hover:text-blue-300 underline decoration-dotted"
+                            title={t.history.col_version}
+                          >
+                            {record.version ?? '-'}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">{record.description}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{record.type}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400 font-mono">{record.script}</td>
