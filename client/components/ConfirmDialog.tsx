@@ -17,7 +17,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ open, title, description,
     <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-[#1e1e1e] w-[520px] border border-flyway-border rounded-lg shadow-xl overflow-hidden">
         <div className="p-3 border-b border-flyway-border flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-300 font-semibold">
+          <div className="flex items-center gap-2 text-red-300 font-semibold">
             <AlertTriangle className="w-4 h-4" />
             <span>{title}</span>
           </div>

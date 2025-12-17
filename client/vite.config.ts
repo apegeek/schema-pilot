@@ -98,6 +98,19 @@ export default defineConfig(({ mode }) => {
               return t;
             })();
 
+            const ensureHistoryTableMySQL = async (conn: any) => {
+              await conn.execute(
+                'CREATE TABLE IF NOT EXISTS flyway_schema_history (installed_rank INT NOT NULL, version VARCHAR(50), description VARCHAR(200) NOT NULL, type VARCHAR(20) NOT NULL, script VARCHAR(1000) NOT NULL, checksum INT, installed_by VARCHAR(100) NOT NULL, installed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, execution_time INT NOT NULL, success TINYINT(1) NOT NULL, PRIMARY KEY (installed_rank))'
+              );
+            };
+
+            const ensureHistoryTablePg = async (client: any, schema?: string) => {
+              const s = schema && schema.trim() ? schema : 'public';
+              await client.query(`CREATE SCHEMA IF NOT EXISTS ${s}`);
+              await client.query(`CREATE TABLE IF NOT EXISTS ${s}.flyway_schema_history (installed_rank INT NOT NULL, version VARCHAR(50), description VARCHAR(200) NOT NULL, type VARCHAR(20) NOT NULL, script VARCHAR(1000) NOT NULL, checksum INT, installed_by VARCHAR(100) NOT NULL, installed_on TIMESTAMP NOT NULL DEFAULT NOW(), execution_time INT NOT NULL, success BOOLEAN NOT NULL, PRIMARY KEY (installed_rank))`);
+              await client.query(`CREATE INDEX IF NOT EXISTS flyway_schema_history_s_idx ON ${s}.flyway_schema_history USING btree (success)`);
+            };
+
             const readPrompt = async (): Promise<string> => {
               try {
                 const client = createRedisClient({ socket: { host: '127.0.0.1', port: 6379 } });
@@ -318,6 +331,7 @@ export default defineConfig(({ mode }) => {
                       password: cfg.password,
                       database: cfg.database
                     });
+                    await ensureHistoryTableMySQL(conn);
                     const [result] = await conn.execute('SELECT installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success FROM flyway_schema_history ORDER BY installed_rank');
                     rows = Array.isArray(result) ? result : [];
                     await conn.end();
@@ -331,6 +345,7 @@ export default defineConfig(({ mode }) => {
                     });
                     await client.connect();
                     const schema = cfg.schema && cfg.schema.trim() ? cfg.schema : 'public';
+                    await ensureHistoryTablePg(client, schema);
                     const resPg = await client.query(`SELECT installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success FROM ${schema}.flyway_schema_history ORDER BY installed_rank`);
                     rows = resPg.rows || [];
                     await client.end();
@@ -425,6 +440,7 @@ export default defineConfig(({ mode }) => {
                       database: cfg.database,
                       multipleStatements: true
                     });
+                    await ensureHistoryTableMySQL(conn);
                     
                     // Run script
                     await conn.query(sc.content);
@@ -462,6 +478,7 @@ export default defineConfig(({ mode }) => {
                     await client.connect();
                     const schema = cfg.schema && cfg.schema.trim() ? cfg.schema : 'public';
                     await client.query(`SET search_path TO ${schema}`);
+                    await ensureHistoryTablePg(client, schema);
                     
                     // Run script
                     await client.query(sc.content);
