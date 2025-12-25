@@ -7,17 +7,32 @@ import { useLanguage } from '../contexts/LanguageContext';
 interface HistoryTableProps {
   history: HistoryRecord[];
   onJump?: (record: HistoryRecord) => void;
+  canBatch?: boolean;
+  onBatch?: () => void;
 }
 
-const HistoryTable: React.FC<HistoryTableProps> = ({ history, onJump }) => {
+const HistoryTable: React.FC<HistoryTableProps> = ({ history, onJump, canBatch, onBatch }) => {
   const { t } = useLanguage();
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
       <div className="p-4 border-b border-flyway-border bg-flyway-panel">
-        <h2 className="text-lg font-semibold text-gray-200">{t.history.title}</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          {t.history.subtitle} <code className="text-blue-400">flyway_schema_history</code>
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-200">{t.history.title}</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              {t.history.subtitle} <code className="text-blue-400">flyway_schema_history</code>
+            </p>
+          </div>
+          {canBatch && (
+            <button
+              onClick={onBatch}
+              className="px-3 py-1.5 rounded text-xs font-medium transition-colors bg-green-700 hover:bg-green-600 text-white border border-green-600"
+              title={t.history.col_version}
+            >
+              {t.history.batch_merge}
+            </button>
+          )}
+        </div>
       </div>
       
       <div className="flex-1 overflow-auto p-4">

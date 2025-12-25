@@ -416,6 +416,103 @@ export default defineConfig(({ mode }) => {
                 return;
               }
 
+              if (req.url.startsWith('/api/migrate/batch')) {
+                try {
+                  const body = await readJson(req) as { config: DbConfig, scripts: Array<{ name: string, content: string }> };
+                  const cfg = body.config;
+                  const batch = Array.isArray(body.scripts) ? body.scripts : [];
+                  if (!cfg) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Missing config' }));
+                    return;
+                  }
+                  if (!batch.length) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'No scripts' }));
+                    return;
+                  }
+                  const cmpVer = (a?: string, b?: string) => {
+                    const pa = String(a || '').split('.').map(x => parseInt(x, 10)).map(n => isNaN(n) ? 0 : n);
+                    const pb = String(b || '').split('.').map(x => parseInt(x, 10)).map(n => isNaN(n) ? 0 : n);
+                    const len = Math.max(pa.length, pb.length);
+                    for (let i = 0; i < len; i++) { const ai = pa[i] || 0, bi = pb[i] || 0; if (ai !== bi) return ai - bi; }
+                    return 0;
+                  };
+                  const list = batch.map(x => ({ name: String(x.name || ''), content: String(x.content || ''), ...parseName(String(x.name || '')) }))
+                                    .sort((a, b) => cmpVer(a.version, b.version) || String(a.name).localeCompare(String(b.name)));
+                  if (cfg.type === 'MySQL' || cfg.type === 'MariaDB') {
+                    const conn = await createConnection({ host: cfg.host, port: Number(cfg.port || '3306'), user: cfg.user, password: cfg.password, database: cfg.database, multipleStatements: true });
+                    await ensureHistoryTableMySQL(conn);
+                    const [rowsMax] = await conn.query('SELECT MAX(installed_rank) as max_rank FROM flyway_schema_history') as any;
+                    let nextRank = (Number(rowsMax[0]?.max_rank) || 0) + 1;
+                    const results: Array<{ name: string, ok: boolean, error?: string }> = [];
+                    const historyErrors: string[] = [];
+                    for (const item of list) {
+                      const started = Date.now();
+                      try {
+                        await conn.query(item.content);
+                        const execTime = Date.now() - started;
+                        const checksum = crc32(item.content);
+                        try {
+                          await conn.query('INSERT INTO flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, execution_time, success, installed_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())', [nextRank, item.version || null, item.description, 'SQL', item.name, checksum, 'SchemaPilot', execTime, 1]);
+                          await conn.query('COMMIT');
+                          historyErrors.push('');
+                        } catch (e: any) { historyErrors.push(String(e?.message || e)); }
+                        results.push({ name: item.name, ok: true });
+                        nextRank += 1;
+                      } catch (e: any) {
+                        results.push({ name: item.name, ok: false, error: String(e?.message || e) });
+                        break;
+                      }
+                    }
+                    await conn.end();
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: results.every(r => r.ok), results, historyErrors }));
+                    return;
+                  } else if (cfg.type === 'PostgreSQL') {
+                    const client = new PgClient({ host: cfg.host, port: Number(cfg.port || '5432'), user: cfg.user, password: cfg.password, database: cfg.database });
+                    await client.connect();
+                    const schema = cfg.schema && cfg.schema.trim() ? cfg.schema : 'public';
+                    await client.query(`SET search_path TO ${schema}`);
+                    await ensureHistoryTablePg(client, schema);
+                    const resMax = await client.query(`SELECT MAX(installed_rank) as max_rank FROM ${schema}.flyway_schema_history`);
+                    let nextRank = (Number(resMax.rows[0]?.max_rank) || 0) + 1;
+                    const results: Array<{ name: string, ok: boolean, error?: string }> = [];
+                    const historyErrors: string[] = [];
+                    for (const item of list) {
+                      const started = Date.now();
+                      try {
+                        await client.query(item.content);
+                        const execTime = Date.now() - started;
+                        const checksum = crc32(item.content);
+                        try {
+                          await client.query(`INSERT INTO ${schema}.flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, execution_time, success, installed_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`, [nextRank, item.version || null, item.description, 'SQL', item.name, checksum, 'SchemaPilot', execTime, true]);
+                          await client.query('COMMIT');
+                          historyErrors.push('');
+                        } catch (e: any) { historyErrors.push(String(e?.message || e)); }
+                        results.push({ name: item.name, ok: true });
+                        nextRank += 1;
+                      } catch (e: any) {
+                        results.push({ name: item.name, ok: false, error: String(e?.message || e) });
+                        break;
+                      }
+                    }
+                    await client.end();
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: results.every(r => r.ok), results, historyErrors }));
+                    return;
+                  } else {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ ok: false, error: 'Unsupported DB type' }));
+                    return;
+                  }
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ ok: false, error: String(err?.message || 'Batch migration failed') }));
+                }
+                return;
+              }
+
               if (req.url.startsWith('/api/migrate')) {
                 try {
                   const body = await readJson(req) as { config: DbConfig, script: { name: string, content: string } };

@@ -138,6 +138,20 @@ export const dbService = {
     }
   }
   ,
+  executeBatchMigrations: async (config: DbConfig, scripts: Array<{ name: string; content: string }>): Promise<{ ok: boolean; error?: string; results?: Array<{ name: string, ok: boolean, error?: string }>; historyErrors?: string[] }> => {
+    try {
+      const res = await fetch('/api/migrate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config, scripts })
+      });
+      const data = await res.json();
+      return { ok: Boolean((data as any)?.ok), error: (data as any)?.error, results: (data as any)?.results, historyErrors: (data as any)?.historyErrors };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || 'Network error') };
+    }
+  }
+  ,
   saveAiConfig: async (config: DbConfig): Promise<boolean> => {
     try {
       const res = await fetch('/api/ai/config/save', {

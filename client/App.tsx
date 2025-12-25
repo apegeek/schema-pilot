@@ -400,6 +400,51 @@ const App: React.FC = () => {
     }
   };
 
+  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
+  const [pendingBatchIds, setPendingBatchIds] = useState<string[]>([]);
+  const [isBatchRunning, setIsBatchRunning] = useState(false);
+
+  const isDangerSql = (text: string): boolean => {
+    const statements = String(text || '').split(/;[\r\n]*/).map(s => s.trim()).filter(Boolean);
+    return statements.some(st => {
+      if (/\bdrop\s+(table|index|view|schema)\b/i.test(st)) return true;
+      if (/\btruncate\b/i.test(st)) return true;
+      if (/\balter\s+table[\s\S]*\bdrop\b/i.test(st)) return true;
+      if (/\bdelete\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
+      if (/\bupdate\b/i.test(st) && !/\bwhere\b/i.test(st)) return true;
+      if (/\block\s+table\b/i.test(st)) return true;
+      return false;
+    });
+  };
+
+  const handleBatchMerge = async () => {
+    const pend = scripts.filter(s => s.status === MigrationStatus.PENDING);
+    if (pend.length < 2) { addLog('WARN', 'Batch merge requires at least 2 pending scripts.'); return; }
+    const danger = pend.some(s => isDangerSql(s.content || ''));
+    if (danger) { setPendingBatchIds(pend.map(s => s.id)); setBatchConfirmOpen(true); return; }
+    await runBatchMerge(pend);
+  };
+
+  const runBatchMerge = async (list: ScriptFile[]) => {
+    if (!list.length) return;
+    setIsBatchRunning(true);
+    addLog('INFO', `Starting batch migration of ${list.length} scripts.`);
+    const payload = list.map(s => ({ name: s.name, content: s.content }));
+    const res = await dbService.executeBatchMigrations(config, payload);
+    setIsBatchRunning(false);
+    if (!res.ok) {
+      addLog('ERROR', `Batch migration failed: ${res.error || 'Unknown error'}`);
+    } else {
+      addLog('SUCCESS', 'Batch migration completed.');
+      if (Array.isArray(res.results)) {
+        for (const r of res.results) {
+          addLog(r.ok ? 'SUCCESS' : 'ERROR', `${r.ok ? 'Applied' : 'Failed'}: ${r.name}${r.error ? ` (${r.error})` : ''}`);
+        }
+      }
+      await loadData(config);
+    }
+  };
+
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -510,7 +555,7 @@ const App: React.FC = () => {
           ) : (
             <>
               <div className="flex-1 min-w-[420px] border-r border-flyway-border bg-[#1e1e1e]">
-                <HistoryTable history={history} onJump={handleJumpFromHistory} />
+                <HistoryTable history={history} onJump={handleJumpFromHistory} canBatch={scripts.filter(s => s.status === MigrationStatus.PENDING).length > 2} onBatch={handleBatchMerge} />
               </div>
               <Resizer
                 orientation="vertical"
@@ -753,6 +798,20 @@ const App: React.FC = () => {
         cancelText={t.confirm.cancel}
         onCancel={() => { setDangerConfirmOpen(false); setPendingDangerId(null); addLog('WARN', '执行已取消：检测到高风险 SQL。'); }}
         onConfirm={async () => { const id = pendingDangerId; setDangerConfirmOpen(false); setPendingDangerId(null); if (id) await runMigration(id); }}
+      />
+      <ConfirmDialog
+        open={batchConfirmOpen}
+        title={t.confirm.danger_title}
+        description={t.confirm.danger_desc}
+        confirmText={t.confirm.confirm}
+        cancelText={t.confirm.cancel}
+        onCancel={() => { setBatchConfirmOpen(false); setPendingBatchIds([]); addLog('WARN', '批量执行已取消：检测到高风险 SQL。'); }}
+        onConfirm={async () => {
+          const list = scripts.filter(s => pendingBatchIds.includes(s.id));
+          setBatchConfirmOpen(false);
+          setPendingBatchIds([]);
+          if (list.length) await runBatchMerge(list);
+        }}
       />
       <div className="absolute bottom-2 right-3 text-[10px] text-gray-600 pointer-events-none">Powered by ApegGeek</div>
     </div>

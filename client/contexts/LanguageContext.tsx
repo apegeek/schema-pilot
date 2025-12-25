@@ -148,6 +148,7 @@ interface Translations {
     state_success: string;
     state_fail: string;
     empty: string;
+    batch_merge: string;
   };
   logs: {
     title: string;
@@ -307,7 +308,8 @@ const translations: Record<Language, Translations> = {
       col_success: "Success",
       state_success: "Success",
       state_fail: "Fail",
-      empty: "No history records found."
+      empty: "No history records found.",
+      batch_merge: "Batch Migrate"
     },
     logs: {
       title: "Execution Logs",
@@ -465,7 +467,8 @@ const translations: Record<Language, Translations> = {
       col_success: "成功",
       state_success: "成功",
       state_fail: "失败",
-      empty: "暂无历史记录。"
+      empty: "暂无历史记录。",
+      batch_merge: "批量合并"
     },
     logs: {
       title: "执行日志",
